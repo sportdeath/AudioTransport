@@ -1,7 +1,7 @@
 #ifndef CLASSIC_VOCODER_HPP
 #define CLASSIC_VOCODER_HPP
 
-#include <fftw3.h>
+#include <complex>
 
 #include <Vocoder/PhaseVocoder.hpp>
 
@@ -21,10 +21,10 @@ class ClassicVocoder : public PhaseVocoder {
     ~ClassicVocoder();
 
     void processFrameTransform(
-        const fftw_complex * transform0,
-        const fftw_complex * transform1,
+        std::complex<double> ** transforms0,
+        std::complex<double> ** transforms1,
         double interpolationFactor, 
-        fftw_complex * transformOut
+        std::complex<double> * transformOut
         );
 };
 

@@ -9,7 +9,7 @@
 #include <Vocoder/TransportVocoder.hpp>
 
 int main() {
-  int hopSize = 4096;
+  int hopSize = 1024;
   int windowSize = 4096;
   int sampleRate = 44100;
   int numOutputChannels = 2;
@@ -87,6 +87,54 @@ int main() {
       interpolationFactor = 1;
     }
     if (interpolationFactor < 0) {
+      interpolationFactor = 0;
+    }
+    
+    if (userInput == "rampupslow") {
+      interpolationFactor = 0;
+      while (interpolationFactor < 1) {
+        // Wait for one 
+        double waitSeconds = hopSize/double(sampleRate);
+        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
+        // add
+        interpolationFactor += 0.001; 
+      }
+      interpolationFactor = 1;
+    }
+
+    if (userInput == "rampupfast") {
+      interpolationFactor = 0;
+      while (interpolationFactor < 1) {
+        // Wait for one 
+        double waitSeconds = hopSize/double(sampleRate);
+        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
+        // add
+        interpolationFactor += 0.01; 
+      }
+      interpolationFactor = 1;
+    }
+
+    if (userInput == "rampdownslow") {
+      interpolationFactor = 1;
+      while (interpolationFactor > 0) {
+        // Wait for one 
+        double waitSeconds = hopSize/double(sampleRate);
+        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
+        // add
+        interpolationFactor -= 0.001; 
+      }
+      interpolationFactor = 0;
+    }
+
+    if (userInput == "rampdownfast") {
+      interpolationFactor = 1;
+      while (interpolationFactor > 0) {
+        // Wait for one 
+        double waitSeconds = hopSize/double(sampleRate);
+        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
+        // add
+        interpolationFactor -= 0.01; 
+      }
       interpolationFactor = 0;
     }
   }

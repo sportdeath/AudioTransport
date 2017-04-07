@@ -3,8 +3,6 @@
 
 #include <complex>
 
-#include <fftw3.h>
-
 #include <Vocoder/PhaseVocoder.hpp>
 
 class TransportVocoder : public PhaseVocoder {
@@ -30,10 +28,10 @@ class TransportVocoder : public PhaseVocoder {
     ~TransportVocoder();
 
     void processFrameTransform(
-        const fftw_complex * transform0,
-        const fftw_complex * transform1,
+        const std::complex<double> ** transforms0,
+        const std::complex<double> ** transforms1,
         double interpolationFactor, 
-        fftw_complex * transformOut
+        std::complex<double> * transformOut
         );
 };
 

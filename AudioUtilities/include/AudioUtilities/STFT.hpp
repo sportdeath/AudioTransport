@@ -12,15 +12,20 @@ class STFT {
     double * audioBuffer;
     double * windowedAudioBuffer;
 
-    fftw_plan fftwPlan;
-    fftw_complex * transform;
+    unsigned int maxTransformDegree;
+    fftw_plan * fftwPlans;
+    fftw_complex ** transforms;
 
   public:
-    STFT(unsigned int hopSize, unsigned int windowSize);
+    STFT(
+        unsigned int hopSize, 
+        unsigned int windowSize, 
+        unsigned int maxTransformDegree = 0);
     ~STFT();
 
     void processHop(const double * audioHop);
-    fftw_complex * getTransform();
+    fftw_complex * getTransform(unsigned int transformDegree = 0);
+    fftw_complex ** getTransforms();
 };
 
 #endif

@@ -50,3 +50,26 @@ void CoordinateTransforms::polarToCartesian(
     transform[i][1] = complexExponential.imag();
   }
 }
+
+void CoordinateTransforms::cartesianToPolar(
+  const std::complex<double> * transform,
+  double * amplitudes,
+  double * phases,
+  int transformSize
+  ) {
+  for (int i = 0; i < transformSize; i++) {
+    amplitudes[i] = std::abs(transform[i]);
+    phases[i] = std::arg(transform[i]);
+  }
+}
+
+void CoordinateTransforms::polarToCartesian(
+  const double * amplitudes,
+  const double * phases,
+  std::complex<double> * transform,
+  int transformSize
+  ) {
+  for (int i = 0; i < transformSize; i++) {
+    transform[i] = amplitudes[i] * std::exp(I * phases[i]);
+  }
+}

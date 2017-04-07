@@ -1,4 +1,4 @@
-#include <fftw3.h>
+#include <complex>
 
 #include <AudioUtilities/CoordinateTransforms.hpp>
 
@@ -27,20 +27,20 @@ ClassicVocoder::~ClassicVocoder() {
 }
 
 void ClassicVocoder::processFrameTransform(
-    const fftw_complex * transform0,
-    const fftw_complex * transform1,
+    std::complex<double> ** transforms0,
+    std::complex<double> ** transforms1,
     double interpolationFactor, 
-    fftw_complex * transformOut
+    std::complex<double> * transformOut
     ) {
 
   // Convert to amp and phase
   CoordinateTransforms::cartesianToPolar(
-      transform0,
+      transforms0[0],
       amplitudes0,
       phases0,
       transformSize);
   CoordinateTransforms::cartesianToPolar(
-      transform1,
+      transforms1[0],
       amplitudes1,
       phases1,
       transformSize);

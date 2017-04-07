@@ -1,6 +1,8 @@
 #ifndef PHASE_VOCODER_HPP
 #define PHASE_VOCODER_HPP
 
+#include <complex>
+
 #include <fftw3.h>
 
 #include <AudioUtilities/STFT.hpp>
@@ -13,13 +15,30 @@ class PhaseVocoder {
 
     ISTFT istft;
 
-    fftw_complex * transformOut;
+    unsigned int maxTransformDegree;
+
+    fftw_complex * transformOutFFTW;
+
+    std::complex<double> ** transforms0;
+    std::complex<double> ** transforms1;
+    std::complex<double> * transformOut;
+
+    void fftwToComplexTransform(
+        const fftw_complex * fftwTransform,
+        std::complex<double> * complexTransform);
+
+    void complexToFFTWTransform(
+        const std::complex<double> * complexTransform,
+        fftw_complex * fftwTransform);
 
   protected:
     unsigned int transformSize;
 
   public:
-    PhaseVocoder(unsigned int hopSize, unsigned int windowSize);
+    PhaseVocoder(
+        unsigned int hopSize, 
+        unsigned int windowSize,
+        unsigned int maxTransformDegree = 0);
 
     ~PhaseVocoder();
 
@@ -31,10 +50,10 @@ class PhaseVocoder {
         );
 
     virtual void processFrameTransform(
-        const fftw_complex * transform0,
-        const fftw_complex * transform1,
+        std::complex<double> ** transforms0,
+        std::complex<double> ** transforms1,
         double interpolationFactor, 
-        fftw_complex * 
+        std::complex<double> * transformOut
         ) = 0;
 };
 

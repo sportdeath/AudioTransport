@@ -38,7 +38,7 @@ int main() {
   BidirectionalVocoder leftVocoder(hopSize, windowSize);
   BidirectionalVocoder rightVocoder(hopSize, windowSize);
 
-  double interpolationFactor = 0.5;
+  double interpolationFactor = 0;
 
   // make handler function
   std::function<HandleInputBufferFunction> handler =
@@ -87,6 +87,54 @@ int main() {
       interpolationFactor = 1;
     }
     if (interpolationFactor < 0) {
+      interpolationFactor = 0;
+    }
+
+    if (userInput == "rampupslow") {
+      interpolationFactor = 0;
+      while (interpolationFactor < 1) {
+        // Wait for one 
+        double waitSeconds = hopSize/double(sampleRate);
+        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
+        // add
+        interpolationFactor += 0.001; 
+      }
+      interpolationFactor = 1;
+    }
+
+    if (userInput == "rampupfast") {
+      interpolationFactor = 0;
+      while (interpolationFactor < 1) {
+        // Wait for one 
+        double waitSeconds = hopSize/double(sampleRate);
+        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
+        // add
+        interpolationFactor += 0.01; 
+      }
+      interpolationFactor = 1;
+    }
+
+    if (userInput == "rampdownslow") {
+      interpolationFactor = 1;
+      while (interpolationFactor > 0) {
+        // Wait for one 
+        double waitSeconds = hopSize/double(sampleRate);
+        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
+        // add
+        interpolationFactor -= 0.001; 
+      }
+      interpolationFactor = 0;
+    }
+
+    if (userInput == "rampdownfast") {
+      interpolationFactor = 1;
+      while (interpolationFactor > 0) {
+        // Wait for one 
+        double waitSeconds = hopSize/double(sampleRate);
+        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
+        // add
+        interpolationFactor -= 0.01; 
+      }
       interpolationFactor = 0;
     }
   }

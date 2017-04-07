@@ -62,7 +62,7 @@ set(VOCODER_SOURCES
   ${PROJECT_SOURCE_DIR}/PhaseVocoder.cpp
   ${PROJECT_SOURCE_DIR}/ClassicVocoder.cpp
   ${PROJECT_SOURCE_DIR}/BidirectionalVocoder.cpp
-  ${PROJECT_SOURCE_DIR}/TransportVocoder.cpp
+  #${PROJECT_SOURCE_DIR}/TransportVocoder.cpp
 )
 
 include_directories("${PROJECT_INCLUDE_DIR}")
@@ -81,4 +81,4 @@ set(LIBS ${LIBS} ${PROJECT_NAME})
 
 MAKE_TEST(ClassicVocoderTest)
 MAKE_TEST(BidirectionalVocoderTest)
-MAKE_TEST(TransportVocoderTest)
+#MAKE_TEST(TransportVocoderTest)

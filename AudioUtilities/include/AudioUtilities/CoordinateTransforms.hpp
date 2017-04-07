@@ -22,6 +22,20 @@ class CoordinateTransforms {
       fftw_complex * transform,
       int transformSize
       );
+
+    static void cartesianToPolar(
+      const std::complex<double> * transform,
+      double * amplitudes,
+      double * phases,
+      int transformSize
+      );
+
+    static void polarToCartesian(
+      const double * amplitudes,
+      const double * phases,
+      std::complex<double> * transform,
+      int transformSize
+      );
 };
 
 #endif

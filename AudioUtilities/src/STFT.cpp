@@ -5,9 +5,13 @@
 #include <AudioUtilities/STFT.hpp>
 #include <AudioUtilities/Window.hpp>
 
-STFT::STFT(unsigned int hopSize_, unsigned int windowSize_) :
+STFT::STFT(
+    unsigned int hopSize_, 
+    unsigned int windowSize_, 
+    unsigned int maxTransformDegree_) :
   hopSize(hopSize_), 
-  windowSize(windowSize_)
+  windowSize(windowSize_),
+  maxTransformDegree(maxTransformDegree_)
 {
   assert(windowSize >= hopSize);
 
@@ -15,7 +19,6 @@ STFT::STFT(unsigned int hopSize_, unsigned int windowSize_) :
   analysisWindow = new double[windowSize];
   audioBuffer = new double[windowSize];
   windowedAudioBuffer = new double[windowSize];
-  transform = new fftw_complex[windowSize/2 + 1];
 
   // Calculate a window
   Window::rootHannWindow(analysisWindow, windowSize);
@@ -25,13 +28,20 @@ STFT::STFT(unsigned int hopSize_, unsigned int windowSize_) :
     audioBuffer[i] = 0;
   }
 
-  // Make a plan!
-  fftwPlan = fftw_plan_dft_r2c_1d(
-      windowSize,
-      windowedAudioBuffer,
-      transform,
-      FFTW_PATIENT | FFTW_DESTROY_INPUT
-      );
+  transforms = new fftw_complex*[maxTransformDegree+1];
+  fftwPlans = new fftw_plan[maxTransformDegree+1]; 
+  for (int degree = 0; degree <= maxTransformDegree; degree++) {
+    // Allocate fourier
+    transforms[degree] = new fftw_complex[windowSize/2 + 1];
+
+    // Make a plan!
+    fftwPlans[degree] = fftw_plan_dft_r2c_1d(
+        windowSize,
+        windowedAudioBuffer,
+        transforms[degree],
+        FFTW_PATIENT | FFTW_DESTROY_INPUT
+        );
+  }
 }
 
 void STFT::processHop(const double * audioHop) {
@@ -51,17 +61,33 @@ void STFT::processHop(const double * audioHop) {
   }
 
   // Perform Fourier transform
-  fftw_execute(fftwPlan);
+  for (int degree = 0; degree <= maxTransformDegree; degree++) {
+    if (degree > 0) {
+      for (int i = 0; i < windowSize; i++) {
+        // Take derivatives
+        windowedAudioBuffer[i] *= i - windowSize/2;
+      }
+    }
+    fftw_execute(fftwPlans[degree]);
+  }
 }
 
-fftw_complex * STFT::getTransform() {
-  return transform;
+fftw_complex * STFT::getTransform(unsigned int degree) {
+  return transforms[degree];
+}
+
+fftw_complex ** STFT::getTransforms() {
+  return transforms;
 }
 
 STFT::~STFT() {
-  fftw_destroy_plan(fftwPlan);
   delete [] analysisWindow;
   delete [] audioBuffer;
   delete [] windowedAudioBuffer;
-  delete [] transform;
+  for (int degree = 0; degree <= maxTransformDegree; degree++) {
+    fftw_destroy_plan(fftwPlans[degree]);
+    delete [] transforms[degree];
+  }
+  delete [] fftwPlans;
+  delete [] transforms;
 }
