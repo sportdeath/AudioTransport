@@ -4,8 +4,8 @@
 
 #include <fftw3.h>
 
-#include <Vocoder/PhaseVocoder.hpp>
-#include <Vocoder/TransportVocoder.hpp>
+#include "Vocoder/PhaseVocoder.hpp"
+#include "Vocoder/TransportVocoder.hpp"
 
 TransportVocoder::TransportVocoder(
    unsigned int hopSize, 
@@ -37,32 +37,92 @@ TransportVocoder::~TransportVocoder() {
   delete [] assignmentMasses;
 }
 
-bool TransportVocoder::updateMass(int & index, double & mass, double * masses) {
-  while (mass <= 0) {
-    index++;
-    if (index < transformSize) {
-      mass = masses[index];
-      return true;
-    } else {
-      return false;
+void TransportVocoder::processFrameTransform(
+    std::complex<double> *** transforms_,
+    double interpolationFactor, 
+    std::complex<double> * transformOut
+    ) {
+
+  transforms = transforms_;
+
+  for (std::size_t input = 0; input < NUM_INPUTS; input++) {
+    convertToPolar(input)
+
+    // Normalize amplitudes
+    normalizeAmplitudes(input);
+
+    // Compute group delay derivative
+    computeGroupDelayDerivative(input);
+
+    // segment masses
+    segementIntoMasses(input);
+  }
+
+  // Determine mass assignment
+  determineMassAssignment();
+
+  // Use the mass assignments to
+  // create a new output
+  processAssignments();
+}
+
+void TransportVocoder::convertToPolar(
+    std::size_t input
+    ) {
+  for (int i = 0; i < transformSize; i++) {
+    // Compute absolute values
+    amplitudes[input][i] = std::abs(transforms[input][0][i]);
+
+    // Compute normals
+    normals[input][i] = transforms[input][0][i]/amplitudes[input][i];
+  }
+}
+
+void TransportVocoder::normalizeAmplitudes(std::size_t input) {
+  volume[input] = 0;
+
+  for (int i = 0; i < transformSize; i++) {
+    // Accumulate volume
+    volume[input] += amplitudes[input][i];
+  }
+
+  // Normalize the masses
+  for (int i = 0; i < transformSize; i++) {
+    amplitudes[input][i] = amplitudes[input][i]/volume[input];
+  }
+}
+
+void TransportVocoder::computeGroupDelay(std::size_t input) {
+  for (int i = 0; i < transformSize; i++) {
+    groupDelayDerivative[input][i] = 
+      (transforms[input][2][i]/transforms[input][0][i] -
+      std::pow(transforms[input][1][i]/transforms[input][0][i], 2)).imag();
+  }
+}
+
+void TransportVocoder::segementIntoMasses(std::size_t input) {
+  currentNonZero = 
+  for (int i = 0; i < transformSize; i++) {
+    current = transforms[input][0][i];
+    if (i + 1 < transformSize)
+    while (current) {
+      index ++ 
     }
-  } 
-  return true;
+  }
 }
 
 void TransportVocoder::determineMassAssignment() {
-
   numAssignments = 0;
 
   int index0 = 0;
   int index1 = 0;
-  double mass0 = masses0[index0];
-  double mass1 = masses1[index1];
+  double mass0 = masses[0][index0].mass;
+  double mass1 = masses[1][index1].mass;
 
   while (true) {
     // save the indexes
-    assignmentIndices0[numAssignments] = index0;
-    assignmentIndices1[numAssignments] = index1;
+    assignmentIndices[0][numAssignments] = index0;
+    assignmentIndices[1][numAssignments] = index1;
 
     // If mass 0 is small we use it up completely
     // otherwise we use mass 1 up completely
@@ -88,51 +148,20 @@ void TransportVocoder::determineMassAssignment() {
   }
 }
 
-void TransportVocoder::processFrameTransform(
-    const fftw_complex * transform0,
-    const fftw_complex * transform1,
-    double interpolationFactor, 
-    fftw_complex * transformOut
-    ) {
+bool TransportVocoder::updateMass(int & index, double & mass, SpectralMass * masses) {
+  while (mass <= 0) {
+    index++;
+    if (index < transformSize) {
+      mass = masses[index].mass;
+      return true;
+    } else {
+      return false;
+    }
+  } 
+  return true;
+}
 
-  volume0 = 0;
-  volume1 = 0;
-  
-  for (int i = 0; i < transformSize; i++) {
-    // Convert to complex format
-    std::complex<double> complex0 = 
-      std::complex<double>(transform0[i][0], transform0[i][1]);
-    std::complex<double> complex1 = 
-      std::complex<double>(transform1[i][0], transform1[i][1]);
-
-    // Compute absolute values
-    masses0[i] = std::abs(complex0);
-    masses1[i] = std::abs(complex1);
-
-    // Accumulate volume
-    volume0 += masses0[i];
-    volume1 += masses1[i];
-
-    // Compute normals
-    normals0[i] = complex0/masses0[i];
-    normals1[i] = complex1/masses1[i];
-
-    // Zero the output
-    transformOut[i][0] = 0;
-    transformOut[i][1] = 0;
-  }
-
-  // Normalize the masses
-  double massesSum = 0;
-  for (int i = 0; i < transformSize; i++) {
-    masses0[i] = masses0[i]/volume0;
-    masses1[i] = masses1[i]/volume1;
-    massesSum += masses0[i];
-  }
-
-  // Determine mass assignment
-  determineMassAssignment();
-  
+void TransportVocoder::processAssignments() {
   // Fill new output
   for (int i = 0; i < numAssignments; i++) {
     int index0 = assignmentIndices0[i];
@@ -176,3 +205,5 @@ void TransportVocoder::processFrameTransform(
     transformOut[rightOutputIndex][1] += rightOutputComplex.imag();
   }
 }
+
+TransportVocoder::combine
