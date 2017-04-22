@@ -77,5 +77,9 @@ void MIDIStream::updateValues()  {
 }
 
 double MIDIStream::getValue(int controllerNumber) {
-  return values[controllerNumber];
+  if (values.find(controllerNumber) != values.end()) {
+    return values[controllerNumber];
+  } else {
+    return 0;
+  }
 }

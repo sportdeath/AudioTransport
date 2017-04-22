@@ -27,5 +27,6 @@ int main() {
     for (int i = 0; i < 4; i++) {
       std::cout << i << ": " << stream.getValue(controllerValues[i]) << std::endl;
     }
+    std::cout << 5 << ": " << stream.getValue(20) << std::endl;
   }
 }
