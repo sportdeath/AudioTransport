@@ -1,52 +1,25 @@
-#ifndef MIDI_STREAM_HPP
-#define MIDI_STREAM_HPP
+#define BUFFER_SIZE 100
+
+#include <vector>
+#include <map>
 
 #include <portmidi.h>
 
 class MIDIStream {
   private:
-    std::map<int:int> controllerValueMap;
-    PortMidiStream * portMidiStream;
-    PmEvent * buffer
+    std::map<int, double> values;
+    PortMidiStream * stream;
+    PmEvent buffer[BUFFER_SIZE];
 
   public:
-    fetchNewData() {
-      Pm_Read(portMidiStream, buffer,)
-    }
-
-    int getControllerValue(int controllerIndex);
-
-
     MIDIStream(
-        int deviceNum,
-        ) {
-
-      Pm_OpenInput(
-          &portMidiStream,
-          deviceNum,
-          NULL, // No special driver info
-          bufferSize,
-          NULL,
-          NULL
-          );
-
-
-    }
-
-    ~MIDIStream() {
-      Pm_Close();
-    }
-        
-
-
-        std::function<HandleInputBufferFunction> * handleBuffer,
-        int numChannels,
-        int framesPerBuffer,
-        int sampleRate,
-        int deviceNum
+        int deviceNum, 
+        std::vector<int> controllerNumbers
         );
 
-    ~InputStream();
-};
+    ~MIDIStream();
 
-#endif
+    void updateValues();
+
+    double getValue(int number);
+};

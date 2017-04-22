@@ -131,7 +131,7 @@ void chooseDevices(
 
   // Which one would you like?
   std::cout << std::endl;
-  std::cout << "Select an input device: ";
+  std::cout << "Select an output device: ";
   std::cin >> userDeviceSelection;
   while (
       userDeviceSelection < 0 
@@ -140,7 +140,7 @@ void chooseDevices(
       ) {
     std::cin.clear();
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    std::cout << "Select an input device: ";
+    std::cout << "Select an output device: ";
     std::cin >> userDeviceSelection;
   }
   outputDevice = availableOutputDevices[userDeviceSelection];

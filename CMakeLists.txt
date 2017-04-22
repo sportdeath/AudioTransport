@@ -25,6 +25,14 @@ if(NOT PORTAUDIO_FOUND)
   message(ERROR “ PORTAUDIO not found!”)
 endif(NOT PORTAUDIO_FOUND)
 
+# PortMIDI
+find_package(PORTMIDI REQUIRED)
+include_directories(${PORTMIDI_INCLUDE_DIRS})
+set(LIBS ${LIBS} ${PORTMIDI_LIBRARIES})
+if(NOT PORTMIDI_FOUND)
+  message(ERROR “ PORTMIDI not found!”)
+endif(NOT PORTMIDI_FOUND)
+
 # FFTW3
 find_package(FFTW REQUIRED)
 include_directories(${FFTW_INCLUDES})

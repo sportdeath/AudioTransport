@@ -11,6 +11,8 @@ set(AUDIO_UTILITIES_SOURCES
   ${PROJECT_SOURCE_DIR}/InputStream.cpp
   ${PROJECT_SOURCE_DIR}/OutputStream.cpp
   ${PROJECT_SOURCE_DIR}/ChooseDevices.cpp
+  ${PROJECT_SOURCE_DIR}/ChooseMIDIDevices.cpp
+  ${PROJECT_SOURCE_DIR}/MIDIStream.cpp
   ${PROJECT_SOURCE_DIR}/STFT.cpp
   ${PROJECT_SOURCE_DIR}/ISTFT.cpp
   ${PROJECT_SOURCE_DIR}/Window.cpp
@@ -35,5 +37,7 @@ MAKE_TEST(InputStreamTest)
 MAKE_TEST(OutputStreamTest)
 MAKE_TEST(InputOutputStreamTest)
 MAKE_TEST(ChooseDevicesTest)
+MAKE_TEST(ChooseMIDIDevicesTest)
+MAKE_TEST(MIDIStreamTest)
 MAKE_TEST(STFTTest)
 MAKE_TEST(CoordinateTransformsTest)
