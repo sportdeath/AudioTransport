@@ -5,6 +5,8 @@
 #include <AudioUtilities/InputStream.hpp>
 #include <AudioUtilities/OutputStream.hpp>
 #include <AudioUtilities/ChooseDevices.hpp>
+#include <AudioUtilities/ChooseMIDIDevices.hpp>
+#include <AudioUtilities/MIDIStream.hpp>
 
 #include <Vocoder/BidirectionalVocoder.hpp>
 
@@ -26,6 +28,13 @@ int main() {
       outputDeviceNum
       );
 
+  int FADER_VALUE = 64;
+  int LINEAR_VOLUME = 48;
+  int VOCODER_VOLUME = 49;
+  int midiDevice = chooseMIDIDevices();
+  std::vector<int> midiValues = {FADER_VALUE, LINEAR_VOLUME, VOCODER_VOLUME};
+  MIDIStream midiStream = MIDIStream(midiDevice, midiValues);
+
   OutputStream outputStream(
       numOutputChannels, 
       hopSize,
@@ -38,17 +47,24 @@ int main() {
   BidirectionalVocoder leftVocoder(hopSize, windowSize);
   BidirectionalVocoder rightVocoder(hopSize, windowSize);
 
-  double interpolationFactor = 0;
-
   // make handler function
   std::function<HandleInputBufferFunction> handler =
     [
+    &midiStream,
+    &FADER_VALUE,
+    &LINEAR_VOLUME,
+    &VOCODER_VOLUME,
+    &hopSize,
     &outputStream, 
     &output,
     &leftVocoder,
-    &rightVocoder,
-    &interpolationFactor
+    &rightVocoder
       ](double ** audio) {
+
+    midiStream.updateValues();
+    double interpolationFactor = midiStream.getValue(FADER_VALUE);
+    double linearVolume = midiStream.getValue(LINEAR_VOLUME);
+    double vocoderVolume = midiStream.getValue(VOCODER_VOLUME);
 
     // Vocode
     leftVocoder.processFrame(
@@ -63,6 +79,17 @@ int main() {
         interpolationFactor,
         output[1]
         );
+
+    for (int channel = 0; channel < 2; channel ++) {
+      for (int i = 0; i < hopSize; i++) {
+        output[0][i] = 
+          output[0][i] * vocoderVolume + 
+          (audio[0][i] * (1 - interpolationFactor) + audio[2][i] *interpolationFactor) * linearVolume;
+        output[1][i] = 
+          output[1][i] * vocoderVolume + 
+          (audio[1][i] * (1 - interpolationFactor) + audio[3][i] *interpolationFactor) * linearVolume;
+      }
+    }
 
     outputStream.write(output);
   };
@@ -80,62 +107,7 @@ int main() {
   std::string userInput;
   std::cout << std::endl;
   while (userInput != "quit") {
-    std::cout << "To quit type 'quit' or set interpolation value: ";
+    std::cout << "To quit type 'quit': ";
     std::cin >> userInput;
-    interpolationFactor = strtod(userInput.c_str(), NULL);
-    if (interpolationFactor > 1) {
-      interpolationFactor = 1;
-    }
-    if (interpolationFactor < 0) {
-      interpolationFactor = 0;
-    }
-
-    if (userInput == "rampupslow") {
-      interpolationFactor = 0;
-      while (interpolationFactor < 1) {
-        // Wait for one 
-        double waitSeconds = hopSize/double(sampleRate);
-        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
-        // add
-        interpolationFactor += 0.001; 
-      }
-      interpolationFactor = 1;
-    }
-
-    if (userInput == "rampupfast") {
-      interpolationFactor = 0;
-      while (interpolationFactor < 1) {
-        // Wait for one 
-        double waitSeconds = hopSize/double(sampleRate);
-        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
-        // add
-        interpolationFactor += 0.01; 
-      }
-      interpolationFactor = 1;
-    }
-
-    if (userInput == "rampdownslow") {
-      interpolationFactor = 1;
-      while (interpolationFactor > 0) {
-        // Wait for one 
-        double waitSeconds = hopSize/double(sampleRate);
-        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
-        // add
-        interpolationFactor -= 0.001; 
-      }
-      interpolationFactor = 0;
-    }
-
-    if (userInput == "rampdownfast") {
-      interpolationFactor = 1;
-      while (interpolationFactor > 0) {
-        // Wait for one 
-        double waitSeconds = hopSize/double(sampleRate);
-        std::this_thread::sleep_for(std::chrono::milliseconds(int(1000*waitSeconds)));
-        // add
-        interpolationFactor -= 0.01; 
-      }
-      interpolationFactor = 0;
-    }
   }
 }

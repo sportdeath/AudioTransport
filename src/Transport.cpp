@@ -1,29 +1,112 @@
-struct SpectralPiece {
-  int startIndex;
-  int length;
-  double mass;
-  double centerOfMass; // relative to start bin
+#ifndef TRANSPORT_CPP
+#define TRANSPORT_CPP
+
+#include <cstddef>
+#include <cmath>
+
+#include "Vocoder/Transport.hpp"
+#include "Vocoder/SpectralMass.hpp"
+
+template <>
+double Transport::getMass<double>(
+    const double mass
+    ) {
+  return mass;
 }
 
-class Transport {
-  public:
-  private:
-    Transport(unsigned int TransportSize)
-
-    updateMass();
-    massAssignment(
-        spectralPieces1,
+template <>
+double Transport::getMass<SpectralMass>(const SpectralMass mass) {
+  return mass.mass;
 }
 
-void massAssignment(
-    SpectralPiece * spectralPieces, 
-    int numPieces) {
-  numAssignments = 0;
+template <>
+void Transport::setMass<double>(
+    double * masses, 
+    std::size_t index, 
+    double mass) {
+  masses[index] = mass;
+}
 
-  int index0 = 0;
-  int index1 = 0;
-  double mass0 = masses0[index0];
-  double mass1 = masses1[index1];
+template <>
+void Transport::setMass<SpectralMass>(
+    SpectralMass * masses, 
+    std::size_t index, 
+    double mass) {
+  masses[index].mass = mass;
+}
+
+template <class MassContainer>
+double Transport::normalize(
+    const MassContainer * massesIn, 
+    std::size_t numMasses,
+    MassContainer * massesOut) {
+  // Compute total volume
+  double volume = 0;
+  for (std::size_t index = 0; index < numMasses; index++) {
+    volume += getMass<MassContainer>(massesIn[index]);
+  }
+  
+  if (volume == 0) {
+    return 1;
+  }
+
+  // Divide by total volume
+  for (std::size_t index = 0; index < numMasses; index++) {
+    double newMass = getMass<MassContainer>(massesIn[index])/volume;
+    setMass<MassContainer>(massesOut, index, newMass);
+  }
+
+  return volume;
+}
+
+void Transport::unnormalize(
+    double * masses, 
+    std::size_t numMasses,
+    double volume0, 
+    double volume1, 
+    double interpolationFactor) {
+
+  // interpolate to new volume
+  double newVolume = volume0 * (1 - interpolationFactor) + volume1 * interpolationFactor;
+
+  for (std::size_t index = 0; index < numMasses; index++) {
+    masses[index] = newVolume * masses[index];
+  }
+}
+
+template <class MassContainer>
+bool Transport::updateMass(
+    const MassContainer * masses,
+    const std::size_t numMasses,
+    std::size_t & index, 
+    double & mass
+    ) {
+  while (mass <= 0) {
+    index++;
+    if (index < numMasses) {
+      mass = getMass<MassContainer>(masses[index]);
+    } else {
+      return false;
+    }
+  } 
+  return true;
+}
+template <class MassContainer>
+std::size_t Transport::massAssignment(
+    const MassContainer * masses0, 
+    const MassContainer * masses1,
+    const std::size_t numMasses0,
+    const std::size_t numMasses1,
+    std::size_t * assignmentIndices0,
+    std::size_t * assignmentIndices1,
+    double * assignmentMasses
+    ) {
+  std::size_t numAssignments = 0;
+
+  std::size_t index0 = 0;
+  std::size_t index1 = 0;
+  double mass0 = getMass<MassContainer>(masses0[index0]);
+  double mass1 = getMass<MassContainer>(masses1[index1]);
 
   while (true) {
     // save the indexes
@@ -49,10 +132,49 @@ void massAssignment(
     // If either mass is now zero
     // update the index and the mass
     // If the index reaches the end, we break
-    if (not updateMass(index0, mass0, masses0)) break;
-    if (not updateMass(index1, mass1, masses1)) break;
+    if (not updateMass<MassContainer>(masses0, numMasses0, index0, mass0)) break;
+    if (not updateMass<MassContainer>(masses1, numMasses1, index1, mass1)) break;
+  }
+
+  return numAssignments;
+}
+
+template <>
+void Transport::transport<double>(
+    const double * masses0,
+    const double * masses1,
+    const std::size_t * assignmentIndices0,
+    const std::size_t * assignmentIndices1,
+    const double * assignmentMasses,
+    const std::size_t numAssignments,
+    const double interpolationFactor,
+    double * massesOut,
+    const std::size_t numMasses
+    ) {
+  // Clear the current output
+  for (std::size_t i = 0; i < numMasses; i++) {
+    massesOut[i] = 0;
+  }
+
+  for (std::size_t assignmentIndex = 0; assignmentIndex < numAssignments; assignmentIndex++) {
+    std::size_t assignment0 = assignmentIndices0[assignmentIndex];
+    std::size_t assignment1 = assignmentIndices1[assignmentIndex];
+
+    double assignment = assignment0 * (1 - interpolationFactor) + assignment1 * interpolationFactor;
+    //double assignment = assignment0;
+
+    int leftAssignment = std::floor(assignment);
+    int rightAssignment = std::floor(assignment+1);
+
+    double leftContribution = rightAssignment - assignment;
+    double rightContribution = assignment - leftAssignment;
+
+    massesOut[leftAssignment] += leftContribution * assignmentMasses[assignmentIndex];
+    massesOut[rightAssignment] += rightContribution * assignmentMasses[assignmentIndex];
   }
 }
+
+#endif
 
 // Seperate complex transform into masses and angles
 
@@ -75,6 +197,4 @@ void massAssignment(
 // add to the correct bin
 
 // output!
-
-};
 
