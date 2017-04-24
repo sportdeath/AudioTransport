@@ -1,12 +1,13 @@
-#include <Vocoder/PhaseVocoder.hpp>
+#include "Vocoder/PhaseVocoder.hpp"
 
 PhaseVocoder::PhaseVocoder(
     unsigned int hopSize, 
     unsigned int windowSize,
-    unsigned int maxTransformDegree_) :
+    unsigned int maxTransformDegree_,
+    unsigned int sampleRate) :
   maxTransformDegree(maxTransformDegree_),
-  stft0(hopSize, windowSize, maxTransformDegree_),
-  stft1(hopSize, windowSize, maxTransformDegree_),
+  stft0(hopSize, windowSize, maxTransformDegree_, sampleRate),
+  stft1(hopSize, windowSize, maxTransformDegree_, sampleRate),
   istft(hopSize, windowSize)
 {
   transformSize = windowSize/2 + 1;

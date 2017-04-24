@@ -46,7 +46,7 @@ class Transport {
         const double * assignmentMasses,
         const std::size_t numAssignments,
         const double interpolationFactor,
-        double * massesOut,
+        MassContainer * massesOut,
         const std::size_t numMasses
         );
     
@@ -65,8 +65,9 @@ class Transport {
         std::size_t numMasses,
         MassContainer * massesOut);
 
+    template <class MassContainer>
     static void unnormalize(
-        double * masses, 
+        MassContainer * masses, 
         std::size_t numMasses,
         double volume0, 
         double volume1, 

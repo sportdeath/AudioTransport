@@ -9,6 +9,7 @@ class STFT {
     unsigned int windowSize;
 
     double * analysisWindow;
+    double * analysisWindowD;
     double * audioBuffer;
     double * windowedAudioBuffer;
 
@@ -20,7 +21,8 @@ class STFT {
     STFT(
         unsigned int hopSize, 
         unsigned int windowSize, 
-        unsigned int maxTransformDegree = 0);
+        unsigned int maxTransformDegree = 0,
+        unsigned int sampleRate = 1);
     ~STFT();
 
     void processHop(const double * audioHop);

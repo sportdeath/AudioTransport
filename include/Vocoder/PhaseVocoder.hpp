@@ -38,7 +38,8 @@ class PhaseVocoder {
     PhaseVocoder(
         unsigned int hopSize, 
         unsigned int windowSize,
-        unsigned int maxTransformDegree = 0);
+        unsigned int maxTransformDegree = 0,
+        unsigned int sampleRate = 1);
 
     ~PhaseVocoder();
 

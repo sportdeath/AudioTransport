@@ -1,209 +1,286 @@
 #include <iostream>
-
 #include <complex>
 
-#include <fftw3.h>
+#include <AudioUtilities/CoordinateTransforms.hpp>
+#include <AudioUtilities/Plotting.hpp>
 
 #include "Vocoder/PhaseVocoder.hpp"
-#include "Vocoder/TransportVocoder.hpp"
+#include "Vocoder/BidirectionalTransportVocoder.hpp"
+#include "Vocoder/Transport.hpp"
 
-TransportVocoder::TransportVocoder(
+BidirectionalTransportVocoder::BidirectionalTransportVocoder(
    unsigned int hopSize, 
-   unsigned int windowSize
+   unsigned int windowSize,
+   unsigned int sampleRate_
    ) : 
-  PhaseVocoder(hopSize, windowSize)
+  PhaseVocoder(hopSize, windowSize, 2, sampleRate_),
+  sampleRate(sampleRate_)
 {
-  masses0 = new double[transformSize];
-  masses1 = new double[transformSize];
-  normals0 = new std::complex<double>[transformSize];
-  normals1 = new std::complex<double>[transformSize];
+  amplitudes0 = new double[transformSize];
+  amplitudes1 = new double[transformSize];
+  phases0 = new double[transformSize];
+  phases1 = new double[transformSize];
+
+  masses0 = new SpectralMass[transformSize];
+  masses1 = new SpectralMass[transformSize];
+  massesOut = new SpectralMass[transformSize];
 
   // This is maximum possible number of assignments
   // in the transform
   int maxTransportSize = 2*transformSize - 1;
 
-  assignmentIndices0 = new int[maxTransportSize];
-  assignmentIndices1 = new int[maxTransportSize];
+  massesData = new std::complex<double>[maxTransportSize];
+
+  assignmentIndices0 = new std::size_t[maxTransportSize];
+  assignmentIndices1 = new std::size_t[maxTransportSize];
   assignmentMasses = new double[maxTransportSize];
 }
 
-TransportVocoder::~TransportVocoder() {
+BidirectionalTransportVocoder::~BidirectionalTransportVocoder() {
+  delete [] amplitudes0;
+  delete [] amplitudes1;
+  delete [] phases0;
+  delete [] phases1;
   delete [] masses0;
   delete [] masses1;
-  delete [] normals0;
-  delete [] normals1;
+  delete [] massesOut;
   delete [] assignmentIndices0;
   delete [] assignmentIndices1;
   delete [] assignmentMasses;
 }
 
-void TransportVocoder::processFrameTransform(
-    std::complex<double> *** transforms_,
+void BidirectionalTransportVocoder::processFrameTransform(
+    std::complex<double> ** transforms0,
+    std::complex<double> ** transforms1,
     double interpolationFactor, 
     std::complex<double> * transformOut
     ) {
 
-  transforms = transforms_;
+  if (interpolationFactor > 0) {
+    std::vector<double> reassigned(transformSize);
+    for (int i = 0; i < transformSize; i++) {
+      reassigned[i] = getReassignedFrequency(transforms0, i);
+    }
 
-  for (std::size_t input = 0; input < NUM_INPUTS; input++) {
-    convertToPolar(input)
+    std::vector<double> frequency(transformSize);
+    for (int i = 0; i < transformSize; i++) {
+      frequency[i] = getBinFrequency(i);
+    }
 
-    // Normalize amplitudes
-    normalizeAmplitudes(input);
+    std::vector<double> amps(transformSize);
+    for (int i = 0; i < transformSize; i++) {
+      amps[i] = 100*std::abs(transforms0[0][i]);
+    }
 
-    // Compute group delay derivative
-    computeGroupDelayDerivative(input);
+    std::vector<std::vector<double> > plots = {
+      reassigned, 
+      frequency,
+      amps
+    };
 
-    // segment masses
-    segementIntoMasses(input);
+    std::cout << "Plotting!" << std::endl;
+    Plotting::plotVectors(plots);
   }
 
-  // Determine mass assignment
-  determineMassAssignment();
+  // Convert to polar
+  CoordinateTransforms::cartesianToPolar(
+      transforms0[0],
+      amplitudes0,
+      phases0,
+      transformSize
+      );
+  CoordinateTransforms::cartesianToPolar(
+      transforms1[0],
+      amplitudes1,
+      phases1,
+      transformSize
+      );
 
-  // Use the mass assignments to
-  // create a new output
-  processAssignments();
+  // Segment masses
+  std::size_t numMasses0 = segementIntoMasses(
+      transforms0,
+      masses0);
+  std::size_t numMasses1 = segementIntoMasses(
+      transforms1,
+      masses1);
+
+  // Normalize masses
+  double volume0 = 
+    Transport::normalize<SpectralMass>(
+      masses0, 
+      transformSize,
+      masses0
+      );
+  double volume1 = 
+    Transport::normalize<SpectralMass>(
+      masses1, 
+      transformSize,
+      masses1
+      );
+
+  // Compute transformation matrix
+  std::size_t numAssignments = 
+    Transport::massAssignment<SpectralMass>(
+      masses0,
+      masses1,
+      numMasses0,
+      numMasses1,
+      assignmentIndices0,
+      assignmentIndices1,
+      assignmentMasses
+      );
+
+  massesOut[0].centerOfMassPointer = massesData;
+
+  // Move mass along transformation matrix
+  // According to interpolation factor
+  Transport::transport<SpectralMass>(
+      masses0,
+      masses1,
+      assignmentIndices0,
+      assignmentIndices1,
+      assignmentMasses,
+      numAssignments,
+      interpolationFactor,
+      massesOut,
+      transformSize
+      );
+
+  // Unsegment the masses
+  unsegment(
+      massesOut,
+      numAssignments,
+      transformOut
+      );
 }
 
-void TransportVocoder::convertToPolar(
-    std::size_t input
+void BidirectionalTransportVocoder::unsegment(
+    const SpectralMass * masses,
+    std::size_t numMasses,
+    std::complex<double> * transform
     ) {
-  for (int i = 0; i < transformSize; i++) {
-    // Compute absolute values
-    amplitudes[input][i] = std::abs(transforms[input][0][i]);
-
-    // Compute normals
-    normals[input][i] = transforms[input][0][i]/amplitudes[input][i];
-  }
-}
-
-void TransportVocoder::normalizeAmplitudes(std::size_t input) {
-  volume[input] = 0;
-
-  for (int i = 0; i < transformSize; i++) {
-    // Accumulate volume
-    volume[input] += amplitudes[input][i];
+  // Clear the output
+  for (std::size_t i = 0; i < transformSize; i++) {
+    transform[i] = 0;
   }
 
-  // Normalize the masses
-  for (int i = 0; i < transformSize; i++) {
-    amplitudes[input][i] = amplitudes[input][i]/volume[input];
-  }
-}
+  // for each assignment
+  SpectralMass mass;
+  for (std::size_t massIndex = 0; massIndex < numMasses; massIndex++) {
+    mass = masses[massIndex];
+    for (long offset = -long(mass.leftLength); offset <= long(mass.rightLength); offset++) {
+      std::size_t outputIndex = mass.centerOfMass + offset;
 
-void TransportVocoder::computeGroupDelay(std::size_t input) {
-  for (int i = 0; i < transformSize; i++) {
-    groupDelayDerivative[input][i] = 
-      (transforms[input][2][i]/transforms[input][0][i] -
-      std::pow(transforms[input][1][i]/transforms[input][0][i], 2)).imag();
-  }
-}
-
-void TransportVocoder::segementIntoMasses(std::size_t input) {
-  currentNonZero = 
-  for (int i = 0; i < transformSize; i++) {
-    current = transforms[input][0][i];
-    if (i + 1 < transformSize)
-    while (current) {
-      index ++ 
+      // add the data
+      transform[outputIndex] += (mass.centerOfMassPointer + offset)[0];
     }
   }
+
 }
 
-void TransportVocoder::determineMassAssignment() {
-  numAssignments = 0;
+std::size_t BidirectionalTransportVocoder::segementIntoMasses(
+    std::complex<double> ** transforms,
+    SpectralMass * masses
+    ) {
 
-  int index0 = 0;
-  int index1 = 0;
-  double mass0 = masses[0][index0].mass;
-  double mass1 = masses[1][index1].mass;
+  int polarState = 0;
+  int pastState = 0;
+  std::size_t zeroStart = 0;
+  std::size_t polarStart = 0;
 
-  while (true) {
-    // save the indexes
-    assignmentIndices[0][numAssignments] = index0;
-    assignmentIndices[1][numAssignments] = index1;
+  int numMasses = 0;
 
-    // If mass 0 is small we use it up completely
-    // otherwise we use mass 1 up completely
-    if (mass0 < mass1) {
-      assignmentMasses[numAssignments] = mass0;
-    } else {
-      assignmentMasses[numAssignments] = mass1;
+  for (std::size_t i = 0; i < transformSize; i++) {
+    double groupDelayDerivative = 
+      getGroupDelayDerivative(transforms, i);
+
+    // 1 > Threshold
+    // 0  else
+    // -1 < -Threshold
+    int currentState = 
+      (groupDelayDerivative > GROUP_DELAY_D_THRESHOLD) - 
+      (groupDelayDerivative < -GROUP_DELAY_D_THRESHOLD);
+
+    if (currentState != pastState) {
+      if (currentState == 0) {
+        zeroStart = i;
+      } else if (currentState != polarState) {
+        if (pastState == 0) {
+          // Make a mass between
+          // polarStart and zeroStart
+          masses[numMasses] = getMass(transforms[0], polarStart, zeroStart);
+          if (polarStart != zeroStart) numMasses += 1;
+
+          // Make a mass between
+          // zeroStart and i
+          masses[numMasses] = getMass(transforms[0], zeroStart, i);
+          if (zeroStart != i) numMasses += 1;
+        } else {
+          // Make a mass between
+          // polarStart and i
+          masses[numMasses] = getMass(transforms[0], polarStart, i);
+          if (polarStart != i) numMasses += 1;
+        }
+        polarState = currentState;
+        polarStart = i;
+      }
     }
 
-    // Subtract from mass
-    // Guaranteed to be positive or zero
-    mass0 -= assignmentMasses[numAssignments];
-    mass1 -= assignmentMasses[numAssignments];
-
-    // Update the number of assignments
-    numAssignments++;
-
-    // If either mass is now zero
-    // update the index and the mass
-    // If the index reaches the end, we break
-    if (not updateMass(index0, mass0, masses0)) break;
-    if (not updateMass(index1, mass1, masses1)) break;
+    pastState = currentState;
   }
+
+  // Make a final mass
+  // between polarStart and transformSize
+  masses[numMasses] = getMass(transforms[0], polarStart, transformSize);
+  if (polarStart != transformSize) numMasses += 1;
+
+  return numMasses;
 }
 
-bool TransportVocoder::updateMass(int & index, double & mass, SpectralMass * masses) {
-  while (mass <= 0) {
-    index++;
-    if (index < transformSize) {
-      mass = masses[index].mass;
-      return true;
-    } else {
-      return false;
-    }
-  } 
-  return true;
-}
+// Makes a mass [startIndex, endIndex)
+SpectralMass BidirectionalTransportVocoder::getMass(
+    std::complex<double> * transform,
+    std::size_t startIndex,
+    std::size_t endIndex
+    ) {
+  SpectralMass mass;
 
-void TransportVocoder::processAssignments() {
-  // Fill new output
-  for (int i = 0; i < numAssignments; i++) {
-    int index0 = assignmentIndices0[i];
-    int index1 = assignmentIndices1[i];
+  mass.mass = 0;
 
-    // Raise the normals to a power
-    // This interpolates the phase
-    std::complex<double> outputNormal = 
-      std::pow(normals0[index0], 1 - interpolationFactor) *
-      std::pow(normals1[index1], interpolationFactor);
-
-    // Determine output volume
-    double outputVolume =
-      std::pow(volume0, 1 - interpolationFactor) *
-      std::pow(volume1, interpolationFactor);
-
-    // Multiply by the desired mass
-    std::complex<double> outputComplex = 
-      outputVolume * outputNormal * assignmentMasses[i];
-
-    // The output bin
-    double outputIndex = 
-      index0 * (1 - interpolationFactor) +
-      index1 * interpolationFactor;
-
-    // Linearly interpolate between adjacent bins
-    int leftOutputIndex = std::floor(outputIndex);
-    int rightOutputIndex = std::floor(outputIndex+1);
-
-    double leftContribution = rightOutputIndex - outputIndex;
-    double rightContribution = outputIndex - leftOutputIndex;
-
-    std::complex<double> leftOutputComplex =
-      leftContribution * outputComplex;
-    std::complex<double> rightOutputComplex =
-      rightContribution * outputComplex;
-
-    transformOut[leftOutputIndex][0] += leftOutputComplex.real();
-    transformOut[leftOutputIndex][1] += leftOutputComplex.imag();
-    transformOut[rightOutputIndex][0] += rightOutputComplex.real();
-    transformOut[rightOutputIndex][1] += rightOutputComplex.imag();
+  double centerOfMass = 0;
+  for (std::size_t i = startIndex; i < endIndex; i++) {
+    double magnitude = std::abs(transform[i]);
+    mass.mass += magnitude;
+    centerOfMass += magnitude * i;
   }
+  mass.centerOfMass = std::round(centerOfMass/mass.mass);
+  mass.leftLength = mass.centerOfMass - startIndex;
+  mass.rightLength = endIndex - mass.centerOfMass - 1;
+  mass.centerOfMassPointer = transform + mass.centerOfMass;
+
+  return mass;
 }
 
-TransportVocoder::combine
+double BidirectionalTransportVocoder::getGroupDelayDerivative(
+    std::complex<double> ** transforms,
+    std::size_t i) {
+  return (transforms[2][i]/transforms[0][i] -
+    std::pow(transforms[1][i]/transforms[0][i], 2)).imag();
+}
+
+double BidirectionalTransportVocoder::getBinFrequency(
+    std::size_t index
+    ) {
+  return 2 * M_PI * long(index) * sampleRate/(2. * (transformSize - 1.));
+}
+
+double BidirectionalTransportVocoder::getReassignedFrequency(
+    std::complex<double> ** transforms,
+    std::size_t i
+    ) {
+  return 
+    getBinFrequency(i) - std::imag(
+        (transforms[1][i] * std::conj(transforms[0][i])) / 
+        (std::real(transforms[0][i]) * std::real(transforms[0][i]) +
+         std::imag(transforms[0][i]) * std::imag(transforms[0][i])));
+}

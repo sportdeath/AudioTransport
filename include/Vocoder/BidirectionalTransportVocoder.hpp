@@ -1,63 +1,69 @@
-#ifndef TRANSPORT_VOCODER
-#define TRANSPORT_VOCODER
+#ifndef BIDIRECTIONAL_TRANSPORT_VOCODER
+#define BIDIRECTIONAL_TRANSPORT_VOCODER
 
 #include <complex>
+#include <cstddef>
 
-#include <Vocoder/PhaseVocoder.hpp>
+#include "Vocoder/SpectralMass.hpp"
+#include "Vocoder/PhaseVocoder.hpp"
 
-struct SpectralMass {
-  std::size_t startIndex;
-  std::size_t length;
-  double mass;
-  double centerOfMass; // relative to start bin
-}
-
-class TransportVocoder : public PhaseVocoder {
-
+class BidirectionalTransportVocoder : public PhaseVocoder {
   private:
-    // The transforms
-    std::complex<double> *** transforms;
+    int sampleRate;
+    double GROUP_DELAY_D_THRESHOLD = 100000000;
+    double * amplitudes0;
+    double * amplitudes1;
+    double * phases0;
+    double * phases1;
 
-    // Absolute values
-    double * amplitudes[2];
-    // Complex values divided by absolute values
-    std::complex<double> * normals[2];
-    // The sum of everything
-    double volume[2];
+    SpectralMass * masses0;
+    SpectralMass * masses1;
+    SpectralMass * massesOut;
 
-    // The derivative
-    double * groupDelayDerivative[2];
+    std::complex<double> * massesData;
 
-    // Masses that encapsulate whole sinusoids
-    // Optimal transport is done on these
-    SpectralMass * masses[2];
-
-    // Assignments from masses0 to masses1
-    // Each assignment has an index into masses0
-    // and an index into masses1
-    // Plus an assigned mass that they share
-    int * assignmentIndices[2];
+    std::size_t * assignmentIndices0;
+    std::size_t * assignmentIndices1;
     double * assignmentMasses;
-    // This is the number of assignments
-    // its bounded at 2 * (|transport| - 1)
-    int numAssignments;
 
-    bool updateMass(int & index, double & mass, double * masses);
+    void unsegment(
+        const SpectralMass * masses,
+        std::size_t numAssignments,
+        std::complex<double> * transform
+        );
 
-    /**
-     * Determines a mass assignment for
-     * the values in masses0 and masses1
-     */
-    void determineMassAssignment();
+    std::size_t segementIntoMasses(
+        std::complex<double> ** transforms,
+        SpectralMass * masses
+        );
+
+    SpectralMass getMass(
+        std::complex<double> * transform,
+        std::size_t startIndex,
+        std::size_t endIndex
+        );
+
+    double getGroupDelayDerivative(
+        std::complex<double> ** transforms,
+        std::size_t i);
+
+    double getBinFrequency(
+        std::size_t index
+        );
+
+    double getReassignedFrequency(
+        std::complex<double> ** transforms,
+        std::size_t index
+        );
 
   public:
-    TransportVocoder(unsigned int hopSize, unsigned int windowSize);
+    BidirectionalTransportVocoder(unsigned int hopSize, unsigned int windowSize, unsigned int sampleRate);
 
-    ~TransportVocoder();
+    ~BidirectionalTransportVocoder();
 
     void processFrameTransform(
-        const std::complex<double> ** transforms0,
-        const std::complex<double> ** transforms1,
+        std::complex<double> ** transforms0,
+        std::complex<double> ** transforms1,
         double interpolationFactor, 
         std::complex<double> * transformOut
         );

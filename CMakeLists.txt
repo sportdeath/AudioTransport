@@ -41,6 +41,16 @@ if(NOT FFTW_FOUND)
   message(ERROR " FFTW not found!")
 endif(NOT FFTW_FOUND)
 
+# For plotting:
+# Boost
+find_package(Boost COMPONENTS iostreams filesystem REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+link_directories(${Boost_LIBRARY_DIRS})
+set(LIBS ${LIBS} ${Boost_LIBRARIES})
+if(NOT Boost_FOUND)
+  message(ERROR " Boost not found!")
+endif(NOT Boost_FOUND)
+
 ##################
 ## Testing Macro
 ##################
@@ -71,6 +81,7 @@ set(VOCODER_SOURCES
   ${PROJECT_SOURCE_DIR}/ClassicVocoder.cpp
   ${PROJECT_SOURCE_DIR}/BidirectionalVocoder.cpp
   ${PROJECT_SOURCE_DIR}/TransportVocoder.cpp
+  ${PROJECT_SOURCE_DIR}/BidirectionalTransportVocoder.cpp
   #${PROJECT_SOURCE_DIR}/Transport.cpp
 )
 
@@ -91,3 +102,4 @@ set(LIBS ${LIBS} ${PROJECT_NAME})
 MAKE_TEST(ClassicVocoderTest)
 MAKE_TEST(BidirectionalVocoderTest)
 MAKE_TEST(TransportVocoderTest)
+MAKE_TEST(BidirectionalTransportVocoderTest)

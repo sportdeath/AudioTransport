@@ -17,6 +17,7 @@ set(AUDIO_UTILITIES_SOURCES
   ${PROJECT_SOURCE_DIR}/ISTFT.cpp
   ${PROJECT_SOURCE_DIR}/Window.cpp
   ${PROJECT_SOURCE_DIR}/CoordinateTransforms.cpp
+  ${PROJECT_SOURCE_DIR}/Plotting.cpp
 )
 
 include_directories("${PROJECT_INCLUDE_DIR}")

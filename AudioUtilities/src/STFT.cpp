@@ -1,14 +1,17 @@
 #include <cassert>
+#include <iostream>
 
 #include <fftw3.h>
 
-#include <AudioUtilities/STFT.hpp>
-#include <AudioUtilities/Window.hpp>
+#include "AudioUtilities/Plotting.hpp"
+#include "AudioUtilities/STFT.hpp"
+#include "AudioUtilities/Window.hpp"
 
 STFT::STFT(
     unsigned int hopSize_, 
     unsigned int windowSize_, 
-    unsigned int maxTransformDegree_) :
+    unsigned int maxTransformDegree_,
+    unsigned int sampleRate) :
   hopSize(hopSize_), 
   windowSize(windowSize_),
   maxTransformDegree(maxTransformDegree_)
@@ -17,11 +20,13 @@ STFT::STFT(
 
   // Initialize the arrays
   analysisWindow = new double[windowSize];
+  analysisWindowD = new double[windowSize];
   audioBuffer = new double[windowSize];
   windowedAudioBuffer = new double[windowSize];
 
   // Calculate a window
   Window::rootHannWindow(analysisWindow, windowSize);
+  Window::rootHannWindowD(analysisWindowD, windowSize, sampleRate);
   
   // Clear the audio buffer
   for (int i = 0; i < windowSize; i++) {
@@ -65,7 +70,8 @@ void STFT::processHop(const double * audioHop) {
     if (degree > 0) {
       for (int i = 0; i < windowSize; i++) {
         // Take derivatives
-        windowedAudioBuffer[i] *= i - windowSize/2;
+        //windowedAudioBuffer[i] *= i - windowSize/2;
+        windowedAudioBuffer[i] = audioBuffer[i] * analysisWindowD[i];
       }
     }
     fftw_execute(fftwPlans[degree]);
