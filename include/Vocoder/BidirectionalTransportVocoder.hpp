@@ -37,24 +37,19 @@ class BidirectionalTransportVocoder : public PhaseVocoder {
         SpectralMass * masses
         );
 
-    SpectralMass getMass(
-        std::complex<double> * transform,
-        std::size_t startIndex,
-        std::size_t endIndex
-        );
-
-    double getGroupDelayDerivative(
-        std::complex<double> ** transforms,
-        std::size_t i);
-
     double getBinFrequency(
         std::size_t index
         );
 
-    double getReassignedFrequency(
+    double getFrequencyAdjustment(
         std::complex<double> ** transforms,
-        std::size_t index
+        std::size_t i
         );
+
+    void plotSegmentation(
+        std::complex<double> ** transforms,
+        SpectralMass * masses,
+        std::size_t numMasses);
 
   public:
     BidirectionalTransportVocoder(unsigned int hopSize, unsigned int windowSize, unsigned int sampleRate);

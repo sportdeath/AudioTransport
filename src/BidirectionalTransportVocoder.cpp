@@ -10,16 +10,20 @@
 
 BidirectionalTransportVocoder::BidirectionalTransportVocoder(
    unsigned int hopSize, 
-   unsigned int windowSize,
+   unsigned int windowSize_,
    unsigned int sampleRate_
    ) : 
-  PhaseVocoder(hopSize, windowSize, 2, sampleRate_),
+  PhaseVocoder(hopSize, windowSize_, 1, sampleRate_),
+  windowSize(windowSize_),
   sampleRate(sampleRate_)
 {
   amplitudes0 = new double[transformSize];
   amplitudes1 = new double[transformSize];
   phases0 = new double[transformSize];
   phases1 = new double[transformSize];
+
+  accumulatedPhases0 = new double[transformSize];
+  accumulatedPhases1 = new double[transformSize];
 
   masses0 = new SpectralMass[transformSize];
   masses1 = new SpectralMass[transformSize];
@@ -56,32 +60,6 @@ void BidirectionalTransportVocoder::processFrameTransform(
     std::complex<double> * transformOut
     ) {
 
-  if (interpolationFactor > 0) {
-    std::vector<double> reassigned(transformSize);
-    for (int i = 0; i < transformSize; i++) {
-      reassigned[i] = getReassignedFrequency(transforms0, i);
-    }
-
-    std::vector<double> frequency(transformSize);
-    for (int i = 0; i < transformSize; i++) {
-      frequency[i] = getBinFrequency(i);
-    }
-
-    std::vector<double> amps(transformSize);
-    for (int i = 0; i < transformSize; i++) {
-      amps[i] = 100*std::abs(transforms0[0][i]);
-    }
-
-    std::vector<std::vector<double> > plots = {
-      reassigned, 
-      frequency,
-      amps
-    };
-
-    std::cout << "Plotting!" << std::endl;
-    Plotting::plotVectors(plots);
-  }
-
   // Convert to polar
   CoordinateTransforms::cartesianToPolar(
       transforms0[0],
@@ -96,6 +74,8 @@ void BidirectionalTransportVocoder::processFrameTransform(
       transformSize
       );
 
+  // Accumulate phases
+
   // Segment masses
   std::size_t numMasses0 = segementIntoMasses(
       transforms0,
@@ -103,6 +83,10 @@ void BidirectionalTransportVocoder::processFrameTransform(
   std::size_t numMasses1 = segementIntoMasses(
       transforms1,
       masses1);
+
+  //if (interpolationFactor > 0.5) {
+    //plotSegmentation(transforms0, masses0, numMasses0);
+  //}
 
   // Normalize masses
   double volume0 = 
@@ -152,6 +136,41 @@ void BidirectionalTransportVocoder::processFrameTransform(
       numAssignments,
       transformOut
       );
+
+  //if (interpolationFactor > 0.5) {
+    //plotSegmentation(transforms0, masses0, numMasses0);
+    //plotSegmentation(transforms1, masses1, numMasses1);
+
+    //std::vector<double> amps(transformSize);
+    //for (int i = 0; i < transformSize; i++) {
+      //amps[i] = 0.001 * std::abs(transformOut[i]);
+    //}
+
+    //std::vector<double> phases(transformSize);
+    //for (int i = 0; i < transformSize; i++) {
+      //phases[i] = std::arg(transformOut[i]);
+    //}
+
+    //std::vector<std::vector<double> > vectors = {
+      //phases,
+      //amps
+    //};
+
+    //Plotting::plotVectors(vectors);
+  //}
+}
+
+void BidirectionalTransportVocoder::accumulatePhases(
+    const double * phases,
+    double * accumulatedPhases
+    ) {
+
+  for (std::size_t i = 0; i < transformSize; i++) {
+    accumulatedPhases[i] +=
+      windowSize/sampleRate * 
+      (getFrequencyAdjustment(i) + getBinFrequency(i));
+    // Make sure it equals the actual phase mod 2 pi
+  }
 }
 
 void BidirectionalTransportVocoder::unsegment(
@@ -183,104 +202,134 @@ std::size_t BidirectionalTransportVocoder::segementIntoMasses(
     SpectralMass * masses
     ) {
 
-  int polarState = 0;
-  int pastState = 0;
-  std::size_t zeroStart = 0;
-  std::size_t polarStart = 0;
+  std::size_t numMasses = 1;
 
-  int numMasses = 0;
+  masses[0].centerOfMass = 0;
+  masses[0].centerOfMassPointer = transforms[0];
+  masses[0].leftLength = 0;
 
-  for (std::size_t i = 0; i < transformSize; i++) {
-    double groupDelayDerivative = 
-      getGroupDelayDerivative(transforms, i);
+  // Compute centers of masses
+  double previousAdjustment = getFrequencyAdjustment(transforms, 0);
+  for (std::size_t i = 1; i < transformSize; i++) {
+    double adjustment = getFrequencyAdjustment(transforms, i);
+    
+    if (previousAdjustment >= 0 and adjustment <= 0) {
+      // Center it to the closer one
+      masses[numMasses - 1].centerOfMass = i - (previousAdjustment < -adjustment);
+      // Put a pointer to the array element
+      masses[numMasses - 1].centerOfMassPointer 
+        = transforms[0] + masses[numMasses - 1].centerOfMass;
+      // The left length is the
+      // center of mass minus the start index
+      masses[numMasses - 1].leftLength = 
+        masses[numMasses - 1].centerOfMass - masses[numMasses - 1].leftLength;
+      // Add it to the masses
+    } else if (previousAdjustment < 0 and adjustment > 0) {
+      // goes up until previous adjustment
+      masses[numMasses - 1].rightLength = 
+        i - 1 - masses[numMasses - 1].centerOfMass;
 
-    // 1 > Threshold
-    // 0  else
-    // -1 < -Threshold
-    int currentState = 
-      (groupDelayDerivative > GROUP_DELAY_D_THRESHOLD) - 
-      (groupDelayDerivative < -GROUP_DELAY_D_THRESHOLD);
-
-    if (currentState != pastState) {
-      if (currentState == 0) {
-        zeroStart = i;
-      } else if (currentState != polarState) {
-        if (pastState == 0) {
-          // Make a mass between
-          // polarStart and zeroStart
-          masses[numMasses] = getMass(transforms[0], polarStart, zeroStart);
-          if (polarStart != zeroStart) numMasses += 1;
-
-          // Make a mass between
-          // zeroStart and i
-          masses[numMasses] = getMass(transforms[0], zeroStart, i);
-          if (zeroStart != i) numMasses += 1;
-        } else {
-          // Make a mass between
-          // polarStart and i
-          masses[numMasses] = getMass(transforms[0], polarStart, i);
-          if (polarStart != i) numMasses += 1;
-        }
-        polarState = currentState;
-        polarStart = i;
-      }
+      // Make a new mass
+      // Set the temporary left length
+      // to equal the start index
+      masses[numMasses].leftLength = i;
+      numMasses++;
     }
-
-    pastState = currentState;
+    previousAdjustment = adjustment;
   }
 
-  // Make a final mass
-  // between polarStart and transformSize
-  masses[numMasses] = getMass(transforms[0], polarStart, transformSize);
-  if (polarStart != transformSize) numMasses += 1;
+  masses[numMasses-1].rightLength = 
+    transformSize - 1 - masses[numMasses-1].centerOfMass;
+
+  // Compute masses
+  for(std::size_t massIndex = 0; massIndex < numMasses; massIndex++) {
+    masses[massIndex].mass = 0;
+    for(std::size_t i = 
+        masses[massIndex].centerOfMass - masses[massIndex].leftLength;
+        i <= masses[massIndex].centerOfMass + masses[massIndex].rightLength; 
+        i++) {
+      masses[massIndex].mass += std::abs(transforms[0][i]);
+    }
+  }
 
   return numMasses;
-}
-
-// Makes a mass [startIndex, endIndex)
-SpectralMass BidirectionalTransportVocoder::getMass(
-    std::complex<double> * transform,
-    std::size_t startIndex,
-    std::size_t endIndex
-    ) {
-  SpectralMass mass;
-
-  mass.mass = 0;
-
-  double centerOfMass = 0;
-  for (std::size_t i = startIndex; i < endIndex; i++) {
-    double magnitude = std::abs(transform[i]);
-    mass.mass += magnitude;
-    centerOfMass += magnitude * i;
-  }
-  mass.centerOfMass = std::round(centerOfMass/mass.mass);
-  mass.leftLength = mass.centerOfMass - startIndex;
-  mass.rightLength = endIndex - mass.centerOfMass - 1;
-  mass.centerOfMassPointer = transform + mass.centerOfMass;
-
-  return mass;
-}
-
-double BidirectionalTransportVocoder::getGroupDelayDerivative(
-    std::complex<double> ** transforms,
-    std::size_t i) {
-  return (transforms[2][i]/transforms[0][i] -
-    std::pow(transforms[1][i]/transforms[0][i], 2)).imag();
 }
 
 double BidirectionalTransportVocoder::getBinFrequency(
     std::size_t index
     ) {
-  return 2 * M_PI * long(index) * sampleRate/(2. * (transformSize - 1.));
+  return 2. * M_PI * double(index) * sampleRate/double(windowSize);
 }
 
-double BidirectionalTransportVocoder::getReassignedFrequency(
+double BidirectionalTransportVocoder::getFrequencyAdjustment(
     std::complex<double> ** transforms,
     std::size_t i
     ) {
-  return 
-    getBinFrequency(i) - std::imag(
+  return - std::imag(
         (transforms[1][i] * std::conj(transforms[0][i])) / 
         (std::real(transforms[0][i]) * std::real(transforms[0][i]) +
          std::imag(transforms[0][i]) * std::imag(transforms[0][i])));
+}
+
+void BidirectionalTransportVocoder::plotSegmentation(
+    std::complex<double> ** transforms,
+    SpectralMass * masses,
+    std::size_t numMasses
+    ) {
+
+  double AMPLIFY = 0.001;
+  
+  std::vector<double> reassigned(transformSize);
+  for (int i = 0; i < transformSize; i++) {
+    reassigned[i] = getFrequencyAdjustment(transforms, i) + getBinFrequency(i);
+  }
+
+  std::vector<double> frequency(transformSize);
+  for (int i = 0; i < transformSize; i++) {
+    frequency[i] = getBinFrequency(i);
+  }
+
+  std::vector<double> amps(transformSize);
+  for (int i = 0; i < transformSize; i++) {
+    amps[i] = AMPLIFY*std::abs(transforms[0][i]);
+  }
+
+  std::vector<double> phases(transformSize);
+  for (int i = 0; i < transformSize; i++) {
+    phases[i] = std::arg(transforms[0][i]);
+  }
+
+  std::vector<std::vector<double> > plotVectors = {
+    //reassigned, 
+    //frequency,
+    phases,
+    amps
+  };
+
+  std::vector<std::pair<double, double> > centers(numMasses);
+  for (int i = 0; i < numMasses; i++) {
+    std::size_t position = masses[i].centerOfMass;
+    centers[i] = std::make_pair(position, AMPLIFY * std::abs(transforms[0][position]));
+  }
+
+  std::vector<std::pair<double, double> > lefts(numMasses);
+  for (int i = 0; i < numMasses; i++) {
+    std::size_t position = masses[i].centerOfMass - masses[i].leftLength;
+    lefts[i] = std::make_pair(position, AMPLIFY * std::abs(transforms[0][position]));
+  }
+
+  std::vector<std::pair<double, double> > rights(numMasses);
+  for (int i = 0; i < numMasses; i++) {
+    std::size_t position = masses[i].centerOfMass + masses[i].rightLength;
+    rights[i] = std::make_pair(position, AMPLIFY * std::abs(transforms[0][position]));
+  }
+
+  std::vector<std::vector<std::pair<double, double> > > plotMarkers = {
+    centers,
+    lefts,
+    rights
+  };
+
+  std::cout << "Plotting!" << std::endl;
+  Plotting::plotLinesAndMarkers(plotVectors, plotMarkers);
 }

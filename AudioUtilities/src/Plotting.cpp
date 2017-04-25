@@ -13,48 +13,45 @@ void Plotting::plotArray(
     xyPoints[i] = std::make_pair(i * xAxisScale + xAxisOffset, array[i]);
   }
 
-  plotPair(xyPoints);
+  plotLine(xyPoints);
 }
 
-void Plotting::plotVectors(
+std::vector<std::pair<double, double> > Plotting::vectorToPair(
+    std::vector<double> vector,
+    double xAxisScale, 
+    double xAxisOffset) {
+
+  std::vector<std::pair<double, double> > pair(vector.size());
+
+  for (int i = 0; i < vector.size(); i++) {
+    pair[i] = std::make_pair(i * xAxisScale + xAxisOffset, vector[i]);
+  }
+
+  return pair;
+}
+
+std::vector<std::vector<std::pair<double, double> > > Plotting::vectorsToPairs(
     std::vector<std::vector<double> > vectors,
     double xAxisScale, 
     double xAxisOffset) {
   std::vector<std::vector<std::pair<double, double> > > pairs(vectors.size());
-  for (int i = 0; i < vectors.size(); i++) {
-    pairs[i].resize(vectors[i].size());
-    for (int j = 0; j < vectors[i].size(); j++) {
-      pairs[i][j] = std::make_pair(j * xAxisScale + xAxisOffset, vectors[i][j]);
-    }
+
+  for (int i = 0; i < vectors[i].size(); i++) {
+    pairs[i] = vectorToPair(vectors[i], xAxisScale, xAxisOffset);
   }
 
-  plotPairs(pairs);
+  return pairs;
 }
 
-void Plotting::plotVector(std::vector<double> y, 
-                     double xAxisScale, 
-                     double xAxisOffset) {
-
-  std::vector<std::pair<double, double> > xyPoints(y.size());
-  for (long i = 0; i < y.size(); i++) {
-    xyPoints[i] = std::make_pair(i * xAxisScale + xAxisOffset, y[i]);
-  }
-
-  plotPair(xyPoints);
-}
-
-void Plotting::plotPair(std::vector<std::pair<double, double> > xy) {
-  Gnuplot gp;
-  gp << "plot" << gp.file1d(xy) << "w l" << std::endl;
-  std::cin.get();
-}
-
-void Plotting::plotPairs(std::vector<std::vector<std::pair<double, double> > > pairs) {
+void Plotting::plotVectors(
+    std::vector<std::vector<double> > lines,
+    double xAxisScale, 
+    double xAxisOffset) {
   Gnuplot gp;
   gp << "plot";
-  for (int i = 0; i < pairs.size(); i++) {
-    gp << gp.file1d(pairs[i]) << "w l";
-    if (i != pairs.size() - 1) {
+  for (int i = 0; i < lines.size(); i++) {
+    gp << gp.file1d(vectorToPair(lines[i])) << "w l";
+    if (i != lines.size() - 1) {
       gp << ",";
     }
   } 
@@ -62,20 +59,49 @@ void Plotting::plotPairs(std::vector<std::vector<std::pair<double, double> > > p
   std::cin.get();
 }
 
-void Plotting::plotLineAndMarkers(
-    std::vector<std::pair<double, double> > line,
-    std::vector<double> markers,
-    double pointHeight) {
+void Plotting::plotVector(
+    std::vector<double> vector, 
+    double xAxisScale, 
+    double xAxisOffset) {
 
-  std::vector<std::pair<double, double> > markerPoints(markers.size());
-  for (long i = 0; i < markerPoints.size(); i++) {
-    markerPoints[i] = std::make_pair(markers[i], pointHeight);
-  }
+  plotLine(vectorToPair(vector, xAxisScale, xAxisOffset));
+}
 
+void Plotting::plotLine(std::vector<std::pair<double, double> > line) {
   Gnuplot gp;
-  gp << "plot '-' w l, '-' w p" << std::endl;
-  gp.send1d(line);
-  gp.send1d(markerPoints);
+  gp << "plot" << gp.file1d(line) << "w l" << std::endl;
   std::cin.get();
 }
 
+void Plotting::plotLines(std::vector<std::vector<std::pair<double, double> > > lines) {
+  Gnuplot gp;
+  gp << "plot";
+  for (int i = 0; i < lines.size(); i++) {
+    gp << gp.file1d(lines[i]) << "w l";
+    if (i != lines.size() - 1) {
+      gp << ",";
+    }
+  } 
+  gp << std::endl;
+  std::cin.get();
+}
+
+void Plotting::plotLinesAndMarkers(
+    std::vector<std::vector<double> > lines,
+    std::vector<std::vector<std::pair<double, double> > > markers
+    ) {
+  Gnuplot gp;
+  gp << "plot";
+  for (int i = 0; i < lines.size(); i++) {
+    gp << gp.file1d(vectorToPair(lines[i])) << "w l";
+    gp << ",";
+  } 
+  for (int i = 0; i < markers.size(); i++) {
+    gp << gp.file1d(markers[i]) << "w p";
+    if (i != markers.size() - 1) {
+      gp << ",";
+    }
+  } 
+  gp << std::endl;
+  std::cin.get();
+}

@@ -8,12 +8,20 @@ class Plotting {
     static void plotArray(double * array, unsigned int size, double xAxisScale = 1, double xAxisOffset = 0);
     static void plotVector(std::vector<double> y, double xAxisScale = 1, double xAxisOffset = 0);
     static void plotVectors(std::vector<std::vector<double> > vectors, double xAxisScale = 1, double xAxisOffset = 0);
-    static void plotPair(std::vector<std::pair<double, double> > xy);
-    static void plotPairs(std::vector<std::vector<std::pair<double, double> > > pairs);
-    static void plotLineAndMarkers(
-        std::vector<std::pair<double, double> > line,
-        std::vector<double> markers,
-        double pointHeight = 1);
+    static void plotLine(std::vector<std::pair<double, double> > line);
+    static void plotLines(std::vector<std::vector<std::pair<double, double> > > lines);
+    static std::vector<std::pair<double, double> > vectorToPair(
+        std::vector<double> vector,
+        double xAxisScale = 1, 
+        double xAxisOffset = 0);
+    static std::vector<std::vector<std::pair<double, double> > > vectorsToPairs(
+        std::vector<std::vector<double> > vectors,
+        double xAxisScale = 1, 
+        double xAxisOffset = 0);
+    static void plotLinesAndMarkers(
+        std::vector<std::vector<double> > lines,
+        std::vector<std::vector<std::pair<double, double> > > markers
+        );
 };
 
 #endif

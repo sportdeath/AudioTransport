@@ -11,7 +11,7 @@
 #include <Vocoder/BidirectionalTransportVocoder.hpp>
 
 int main() {
-  int hopSize = 1024;
+  int hopSize = 4096;
   int windowSize = 4096;
   int sampleRate = 44100;
   int numOutputChannels = 2;

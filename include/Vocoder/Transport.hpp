@@ -72,6 +72,12 @@ class Transport {
         double volume0, 
         double volume1, 
         double interpolationFactor);
+
+    inline
+    static std::complex<double> rotate(
+        std::complex<double> value0,
+        std::complex<double> value1,
+        double interpolationFactor);
 };
 
 #include "../../src/Transport.cpp"
