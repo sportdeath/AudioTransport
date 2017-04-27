@@ -193,7 +193,8 @@ void Transport::transport<SpectralMass>(
     const std::size_t numMasses
     ) {
 
-  std::complex<double> * current = massesOut[0].centerOfMassPointer;
+  double * currentAmp = massesOut[0].centerOfMassAmp;
+  double * currentPhase = massesOut[0].centerOfMassPhase;
 
   for (std::size_t assignmentIndex = 0; assignmentIndex < numAssignments; assignmentIndex++) {
     std::size_t massIndex0 = assignmentIndices0[assignmentIndex];
@@ -219,55 +220,71 @@ void Transport::transport<SpectralMass>(
     massesOut[assignmentIndex].centerOfMass = centerOfMass;
     massesOut[assignmentIndex].leftLength = leftLength;
     massesOut[assignmentIndex].rightLength = rightLength;
-    massesOut[assignmentIndex].centerOfMassPointer = current + leftLength;
+    massesOut[assignmentIndex].centerOfMassAmp = currentAmp + leftLength;
+    massesOut[assignmentIndex].centerOfMassPhase = currentPhase + leftLength;
 
-    //double peakPhase = 
-      //mass0.centerOfMassPhase[0] * (1 - interpolationFactor) +
-      //mass1.centerOfMassPhase[0] * interpolationFactor;
+    // rotate from peak0 to peak1
+    double peakPhase = rotate(
+        mass0.centerOfMassPhase[0],
+        mass1.centerOfMassPhase[0],
+        interpolationFactor);
+
+    double newPeakPhase = 
+      mass0.centerOfMassPhase[0] * (1 - interpolationFactor) +
+      mass1.centerOfMassPhase[0] * interpolationFactor;
+
+    double phaseAdjustment = newPeakPhase - peakPhase;
 
     for (std::size_t i = 0; i < totalLength; i++) {
       long offset = i - leftLength;
 
-      //double amp0 = 
+      // Scale the amplitude
+      double amp0 = (mass0.centerOfMassAmp + offset)[0];
+      double amp1 = (mass1.centerOfMassAmp + offset)[0];
 
-      std::complex<double> data0 = (mass0.centerOfMassPointer + offset)[0];
-      std::complex<double> data1 = (mass1.centerOfMassPointer + offset)[0];
+      double ampOut = 
+        std::pow(scale0 * amp0, 1 - interpolationFactor) *
+        std::pow(scale1 * amp1, interpolationFactor);
+
+      // Rotate from phase0 to phase1
+      double phase0 = (mass0.centerOfMassPhase + offset)[0];
+      double phase1 = (mass1.centerOfMassPhase + offset)[0];
+      double phaseOut = rotate(
+          phase0,
+          phase1,
+          interpolationFactor);
+      
+      // Rotate into peak frame
+      phaseOut += phaseAdjustment;
 
       // The peak phase averages the accumulated phases
 
       // Convolve with data that is
       // scaled by assignment mass
       // and set to output
-      (current + i)[0] = 
-        rotate(scale0 * data0, scale1 * data1, interpolationFactor);
+      (currentAmp + i)[0] = ampOut;
+      (currentPhase + i)[0] = phaseOut;
     }
 
-    current += totalLength;
+    currentAmp += totalLength;
+    currentPhase += totalLength;
   }
 }
 
 // Rotate phase in the same direction...
-std::complex<double> Transport::rotate(
-    std::complex<double> value0,
-    std::complex<double> value1,
+double Transport::rotate(
+    double phase0,
+    double phase1,
     double interpolationFactor) {
-  // Rotates from value 0 to value 1
-  // Going clockwise
-  double phase0 = std::arg(value0);
-  double phase1 = std::arg(value1);
+  phase0 = std::fmod(phase0,2*M_PI);
+  phase1 = std::fmod(phase1,2*M_PI);
 
   if (phase1 < phase0) {
     phase1 += 2 * M_PI;
   }
 
-  double newPhase = 
+  return
     phase0 + interpolationFactor * (phase1 - phase0);
-
-  double newAmp =
-    std::pow(std::abs(value0), 1 - interpolationFactor) *
-    std::pow(std::abs(value1), interpolationFactor);
-
-  return std::polar(newAmp, newPhase);
 }
 
 #endif

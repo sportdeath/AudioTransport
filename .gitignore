@@ -16,3 +16,7 @@ Thumbs.db
 #######
 *.sw*
 *~
+
+# Latex
+*.aux
+*.log

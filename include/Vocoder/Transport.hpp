@@ -74,9 +74,9 @@ class Transport {
         double interpolationFactor);
 
     inline
-    static std::complex<double> rotate(
-        std::complex<double> value0,
-        std::complex<double> value1,
+    static double rotate(
+        double phase0,
+        double phase1,
         double interpolationFactor);
 };
 

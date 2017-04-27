@@ -8,7 +8,8 @@ struct SpectralMass {
   std::size_t centerOfMass; // relative to start bin
   std::size_t leftLength;
   std::size_t rightLength;
-  std::complex<double> * centerOfMassPointer;
+  double * centerOfMassAmp;
+  double * centerOfMassPhase;
   double mass;
 };
 

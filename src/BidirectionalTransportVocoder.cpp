@@ -9,11 +9,12 @@
 #include "Vocoder/Transport.hpp"
 
 BidirectionalTransportVocoder::BidirectionalTransportVocoder(
-   unsigned int hopSize, 
+   unsigned int hopSize_, 
    unsigned int windowSize_,
    unsigned int sampleRate_
    ) : 
-  PhaseVocoder(hopSize, windowSize_, 1, sampleRate_),
+  PhaseVocoder(hopSize_, windowSize_, 1, sampleRate_),
+  hopSize(hopSize_),
   windowSize(windowSize_),
   sampleRate(sampleRate_)
 {
@@ -24,6 +25,10 @@ BidirectionalTransportVocoder::BidirectionalTransportVocoder(
 
   accumulatedPhases0 = new double[transformSize];
   accumulatedPhases1 = new double[transformSize];
+  for (std::size_t i = 0; i < transformSize; i++) {
+    accumulatedPhases0[i] = 0;
+    accumulatedPhases1[i] = 0;
+  }
 
   masses0 = new SpectralMass[transformSize];
   masses1 = new SpectralMass[transformSize];
@@ -33,7 +38,8 @@ BidirectionalTransportVocoder::BidirectionalTransportVocoder(
   // in the transform
   int maxTransportSize = 2*transformSize - 1;
 
-  massesData = new std::complex<double>[maxTransportSize];
+  massesAmpData = new double[maxTransportSize];
+  massesPhaseData = new double[maxTransportSize];
 
   assignmentIndices0 = new std::size_t[maxTransportSize];
   assignmentIndices1 = new std::size_t[maxTransportSize];
@@ -45,9 +51,13 @@ BidirectionalTransportVocoder::~BidirectionalTransportVocoder() {
   delete [] amplitudes1;
   delete [] phases0;
   delete [] phases1;
+  delete [] accumulatedPhases0;
+  delete [] accumulatedPhases1;
   delete [] masses0;
   delete [] masses1;
   delete [] massesOut;
+  delete [] massesAmpData;
+  delete [] massesPhaseData;
   delete [] assignmentIndices0;
   delete [] assignmentIndices1;
   delete [] assignmentMasses;
@@ -75,13 +85,27 @@ void BidirectionalTransportVocoder::processFrameTransform(
       );
 
   // Accumulate phases
+  accumulatePhases(
+      phases0,
+      transforms0,
+      accumulatedPhases0
+      );
+  accumulatePhases(
+      phases1,
+      transforms1,
+      accumulatedPhases1
+      );
 
   // Segment masses
   std::size_t numMasses0 = segementIntoMasses(
       transforms0,
+      amplitudes0,
+      accumulatedPhases0,
       masses0);
   std::size_t numMasses1 = segementIntoMasses(
       transforms1,
+      amplitudes1,
+      accumulatedPhases1,
       masses1);
 
   //if (interpolationFactor > 0.5) {
@@ -114,7 +138,8 @@ void BidirectionalTransportVocoder::processFrameTransform(
       assignmentMasses
       );
 
-  massesOut[0].centerOfMassPointer = massesData;
+  massesOut[0].centerOfMassAmp = massesAmpData;
+  massesOut[0].centerOfMassPhase = massesPhaseData;
 
   // Move mass along transformation matrix
   // According to interpolation factor
@@ -162,14 +187,22 @@ void BidirectionalTransportVocoder::processFrameTransform(
 
 void BidirectionalTransportVocoder::accumulatePhases(
     const double * phases,
+    std::complex<double> ** transforms,
     double * accumulatedPhases
     ) {
 
   for (std::size_t i = 0; i < transformSize; i++) {
+    // Accumulate the phase
     accumulatedPhases[i] +=
-      windowSize/sampleRate * 
-      (getFrequencyAdjustment(i) + getBinFrequency(i));
-    // Make sure it equals the actual phase mod 2 pi
+      hopSize/double(sampleRate) * 
+      (getFrequencyAdjustment(transforms, i) + getBinFrequency(i));
+    
+    // Push it to be the target phase
+    double difference = 
+      phases[i] - std::fmod(accumulatedPhases[i] + M_PI,2*M_PI) + M_PI;
+    // Now between - pi and pi
+    difference = std::fmod(difference + M_PI,2*M_PI) - M_PI;
+    accumulatedPhases[i] += difference;
   }
 }
 
@@ -191,7 +224,11 @@ void BidirectionalTransportVocoder::unsegment(
       std::size_t outputIndex = mass.centerOfMass + offset;
 
       // add the data
-      transform[outputIndex] += (mass.centerOfMassPointer + offset)[0];
+      transform[outputIndex] += 
+        std::polar(
+            (mass.centerOfMassAmp + offset)[0],
+            (mass.centerOfMassPhase + offset)[0]);
+
     }
   }
 
@@ -199,13 +236,16 @@ void BidirectionalTransportVocoder::unsegment(
 
 std::size_t BidirectionalTransportVocoder::segementIntoMasses(
     std::complex<double> ** transforms,
+    double * amplitudes,
+    double * accumulatedPhases,
     SpectralMass * masses
     ) {
 
   std::size_t numMasses = 1;
 
   masses[0].centerOfMass = 0;
-  masses[0].centerOfMassPointer = transforms[0];
+  masses[0].centerOfMassAmp = amplitudes;
+  masses[0].centerOfMassPhase = accumulatedPhases;
   masses[0].leftLength = 0;
 
   // Compute centers of masses
@@ -217,8 +257,10 @@ std::size_t BidirectionalTransportVocoder::segementIntoMasses(
       // Center it to the closer one
       masses[numMasses - 1].centerOfMass = i - (previousAdjustment < -adjustment);
       // Put a pointer to the array element
-      masses[numMasses - 1].centerOfMassPointer 
-        = transforms[0] + masses[numMasses - 1].centerOfMass;
+      masses[numMasses - 1].centerOfMassAmp
+        = amplitudes + masses[numMasses - 1].centerOfMass;
+      masses[numMasses - 1].centerOfMassPhase
+        = accumulatedPhases + masses[numMasses - 1].centerOfMass;
       // The left length is the
       // center of mass minus the start index
       masses[numMasses - 1].leftLength = 
@@ -265,6 +307,11 @@ double BidirectionalTransportVocoder::getFrequencyAdjustment(
     std::complex<double> ** transforms,
     std::size_t i
     ) {
+  // SHOULD THIS
+  // BE A PLUS OR A MINUS
+  // PAPER SAYS PLUS
+  //
+  // Also for accumulation we need hopsize!!
   return - std::imag(
         (transforms[1][i] * std::conj(transforms[0][i])) / 
         (std::real(transforms[0][i]) * std::real(transforms[0][i]) +
@@ -326,8 +373,8 @@ void BidirectionalTransportVocoder::plotSegmentation(
 
   std::vector<std::vector<std::pair<double, double> > > plotMarkers = {
     centers,
-    lefts,
-    rights
+    //lefts,
+    //rights
   };
 
   std::cout << "Plotting!" << std::endl;
