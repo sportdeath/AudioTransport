@@ -144,39 +144,39 @@ std::size_t Transport::massAssignment(
   return numAssignments;
 }
 
-template <> inline
-void Transport::transport<double>(
-    const double * masses0,
-    const double * masses1,
-    const std::size_t * assignmentIndices0,
-    const std::size_t * assignmentIndices1,
-    const double * assignmentMasses,
-    const std::size_t numAssignments,
-    const double interpolationFactor,
-    double * massesOut,
-    const std::size_t numMasses
-    ) {
-  // Clear the current output
-  for (std::size_t i = 0; i < numMasses; i++) {
-    massesOut[i] = 0;
-  }
+//template <> inline
+//void Transport::transport<double>(
+    //const double * masses0,
+    //const double * masses1,
+    //const std::size_t * assignmentIndices0,
+    //const std::size_t * assignmentIndices1,
+    //const double * assignmentMasses,
+    //const std::size_t numAssignments,
+    //const double interpolationFactor,
+    //double * massesOut,
+    //const std::size_t numMasses
+    //) {
+  //// Clear the current output
+  //for (std::size_t i = 0; i < numMasses; i++) {
+    //massesOut[i] = 0;
+  //}
 
-  for (std::size_t assignmentIndex = 0; assignmentIndex < numAssignments; assignmentIndex++) {
-    std::size_t assignment0 = assignmentIndices0[assignmentIndex];
-    std::size_t assignment1 = assignmentIndices1[assignmentIndex];
+  //for (std::size_t assignmentIndex = 0; assignmentIndex < numAssignments; assignmentIndex++) {
+    //std::size_t assignment0 = assignmentIndices0[assignmentIndex];
+    //std::size_t assignment1 = assignmentIndices1[assignmentIndex];
 
-    double assignment = assignment0 * (1 - interpolationFactor) + assignment1 * interpolationFactor;
+    //double assignment = assignment0 * (1 - interpolationFactor) + assignment1 * interpolationFactor;
 
-    int leftAssignment = std::floor(assignment);
-    int rightAssignment = std::floor(assignment+1);
+    //int leftAssignment = std::floor(assignment);
+    //int rightAssignment = std::floor(assignment+1);
 
-    double leftContribution = rightAssignment - assignment;
-    double rightContribution = assignment - leftAssignment;
+    //double leftContribution = rightAssignment - assignment;
+    //double rightContribution = assignment - leftAssignment;
 
-    massesOut[leftAssignment] += leftContribution * assignmentMasses[assignmentIndex];
-    massesOut[rightAssignment] += rightContribution * assignmentMasses[assignmentIndex];
-  }
-}
+    //massesOut[leftAssignment] += leftContribution * assignmentMasses[assignmentIndex];
+    //massesOut[rightAssignment] += rightContribution * assignmentMasses[assignmentIndex];
+  //}
+//}
 
 template <> inline
 void Transport::transport<SpectralMass>(
@@ -191,12 +191,13 @@ void Transport::transport<SpectralMass>(
     // The interpolation
     const double interpolationFactor,
     // The output
-    SpectralMass * massesOut,
-    const std::size_t numMasses
+    std::complex<double> * transformOut,
+    const std::size_t transformSize
     ) {
 
-  double * currentAmp = massesOut[0].centerOfMassAmp;
-  double * currentPhase = massesOut[0].centerOfMassPhase;
+  for (int i = 0; i < transformSize; i++) {
+    transformOut[i] = 0;
+  }
 
   for (std::size_t assignmentIndex = 0; assignmentIndex < numAssignments; assignmentIndex++) {
     std::size_t massIndex0 = assignmentIndices0[assignmentIndex];
@@ -219,11 +220,6 @@ void Transport::transport<SpectralMass>(
     std::size_t totalLength = leftLength + rightLength + 1;
 
     // Fill in new mass data
-    massesOut[assignmentIndex].centerOfMass = centerOfMass;
-    massesOut[assignmentIndex].leftLength = leftLength;
-    massesOut[assignmentIndex].rightLength = rightLength;
-    massesOut[assignmentIndex].centerOfMassAmp = currentAmp + leftLength;
-    massesOut[assignmentIndex].centerOfMassPhase = currentPhase + leftLength;
 
     double desiredPeakPhase = 
       mass0.centerOfMassPhase[0] * (1 - interpolationFactor) +
@@ -253,15 +249,11 @@ void Transport::transport<SpectralMass>(
         complex1 * interpolationFactor;
 
       // Amp out
-      (currentAmp + i)[0] = std::abs(complexOut);
-      (currentPhase + i)[0] = std::arg(complexOut);
-
-      //(currentAmp + i)[0] = amp0;
-      //(currentPhase + i)[0] = rotate(phase0, phase1, interpolationFactor);
+      long outIndex = centerOfMass + offset;
+      if (outIndex >=  0 and outIndex < transformSize) {
+        transformOut[outIndex] += complexOut;
+      }
     }
-
-    currentAmp += totalLength;
-    currentPhase += totalLength;
   }
 }
 
@@ -314,3 +306,15 @@ double Transport::rotate(
 
 // output!
 
+
+    //for (int i = -mass0.leftLength; i < mass0.rightLength; i++) {
+      //int index = centerOfMass + i;
+
+      //if (index < 0 or index > transformSize) continue;
+
+      //double amp0 = scale0 * (mass0.centerOfMassAmp + i)[0];
+      //double phase0 = (mass0.centerOfMassPhase + i)[0];
+      //phase0 += phase0Adjustment;
+
+      //transformOut[index] += std::polar(amp0, phase0) * (1 - interpolationFactor);
+    //}

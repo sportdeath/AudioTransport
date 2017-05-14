@@ -155,16 +155,16 @@ void BidirectionalTransportVocoder::processFrameTransform(
       assignmentMasses,
       numAssignments,
       interpolationFactor,
-      massesOut,
+      transformOut,
       transformSize
       );
 
   // Unsegment the masses
-  unsegment(
-      massesOut,
-      numAssignments,
-      transformOut
-      );
+  //unsegment(
+      //massesOut,
+      //numAssignments,
+      //transformOut
+      //);
 
   //unsegment(
       //masses1,

@@ -46,8 +46,8 @@ class Transport {
         const double * assignmentMasses,
         const std::size_t numAssignments,
         const double interpolationFactor,
-        MassContainer * massesOut,
-        const std::size_t numMasses
+        std::complex<double> * transformOut,
+        const std::size_t transformSize
         );
     
     template <class MassContainer>
