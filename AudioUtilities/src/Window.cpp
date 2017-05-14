@@ -20,6 +20,9 @@ void Window::rootHannWindow(double * window, int windowSize) {
     // Center the window
     int windowIndex = i - halfWindow;
     window[i] = std::cos(M_PI * windowIndex/double(windowSize));
+
+    // TODO: delete
+    //window[i] *= window[i];
   }
 }
 
@@ -31,6 +34,9 @@ void Window::rootHannWindowD(double * window, int windowSize, int sampleRate) {
     // Center the window
     int windowIndex = i - halfWindow;
     window[i] = -(M_PI * sampleRate)/double(windowSize) * std::sin(M_PI * windowIndex/double(windowSize));
+
+    // TODO: delete
+    // window[i] = -(M_PI * sampleRate)/double(windowSize) * std::sin(2 * M_PI * windowIndex/double(windowSize));
   }
 
 }

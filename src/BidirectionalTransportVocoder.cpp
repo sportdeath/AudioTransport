@@ -18,6 +18,7 @@ BidirectionalTransportVocoder::BidirectionalTransportVocoder(
   windowSize(windowSize_),
   sampleRate(sampleRate_)
 {
+  freqThreshold = sampleRate/double(windowSize);
   amplitudes0 = new double[transformSize];
   amplitudes1 = new double[transformSize];
   phases0 = new double[transformSize];
@@ -70,6 +71,8 @@ void BidirectionalTransportVocoder::processFrameTransform(
     std::complex<double> * transformOut
     ) {
 
+  // interpolationFactor = 0.5;
+
   // Convert to polar
   CoordinateTransforms::cartesianToPolar(
       transforms0[0],
@@ -97,12 +100,12 @@ void BidirectionalTransportVocoder::processFrameTransform(
       );
 
   // Segment masses
-  std::size_t numMasses0 = segementIntoMasses(
+  std::size_t numMasses0 = segmentIntoMasses(
       transforms0,
       amplitudes0,
       accumulatedPhases0,
       masses0);
-  std::size_t numMasses1 = segementIntoMasses(
+  std::size_t numMasses1 = segmentIntoMasses(
       transforms1,
       amplitudes1,
       accumulatedPhases1,
@@ -162,9 +165,41 @@ void BidirectionalTransportVocoder::processFrameTransform(
       transformOut
       );
 
+  //unsegment(
+      //masses0,
+      ////1,
+      //numMasses0,
+      //transformOut
+      //);
+
+  if (numMasses1 > 400 and numMasses1 > 400 and false) {
+    if (masses0[1].centerOfMass > 300 and masses1[1].centerOfMass > 300) {
+      SpectralMass mass = massesOut[0];
+
+      std::size_t totalLength = 1 + mass.leftLength + mass.rightLength;
+      std::cout << "Mass!: " << mass.mass << std::endl;
+      std::cout << "Total length!: " << totalLength << std::endl;
+      std::vector<double> amps(totalLength);
+      std::vector<double> phases(totalLength);
+
+      for (int i = 0 ; i < totalLength; i++) {
+        int offset = i - mass.leftLength;
+        amps[i] = (mass.centerOfMassAmp + offset)[0];
+        phases[i] = (mass.centerOfMassPhase + offset)[0] - 
+          (mass.centerOfMassPhase - mass.leftLength)[0];
+      }
+
+      std::vector<std::vector<double> > vectors = {
+        phases,
+        amps
+      };
+
+      Plotting::plotVectors(vectors);
+    }
+  }
   //if (interpolationFactor > 0.5) {
-    //plotSegmentation(transforms0, masses0, numMasses0);
-    //plotSegmentation(transforms1, masses1, numMasses1);
+    ////plotSegmentation(transforms0, masses0, numMasses0);
+    ////plotSegmentation(transforms1, masses1, numMasses1);
 
     //std::vector<double> amps(transformSize);
     //for (int i = 0; i < transformSize; i++) {
@@ -196,7 +231,7 @@ void BidirectionalTransportVocoder::accumulatePhases(
     accumulatedPhases[i] +=
       hopSize/double(sampleRate) * 
       (getFrequencyAdjustment(transforms, i) + getBinFrequency(i));
-    
+
     // Push it to be the target phase
     double difference = 
       phases[i] - std::fmod(accumulatedPhases[i] + M_PI,2*M_PI) + M_PI;
@@ -228,60 +263,111 @@ void BidirectionalTransportVocoder::unsegment(
         std::polar(
             (mass.centerOfMassAmp + offset)[0],
             (mass.centerOfMassPhase + offset)[0]);
-
     }
   }
 
 }
 
-std::size_t BidirectionalTransportVocoder::segementIntoMasses(
+std::size_t BidirectionalTransportVocoder::segmentIntoMasses(
     std::complex<double> ** transforms,
     double * amplitudes,
     double * accumulatedPhases,
     SpectralMass * masses
     ) {
 
-  std::size_t numMasses = 1;
+
+  std::size_t numMasses = 0;
 
   masses[0].centerOfMass = 0;
   masses[0].centerOfMassAmp = amplitudes;
   masses[0].centerOfMassPhase = accumulatedPhases;
   masses[0].leftLength = 0;
 
+  int splitPoint = -1;
+  int centerOfMass = 0;
+  bool freshState = true;
+
   // Compute centers of masses
   double previousAdjustment = getFrequencyAdjustment(transforms, 0);
+  std::size_t thresholdEntrance = 1;
   for (std::size_t i = 1; i < transformSize; i++) {
     double adjustment = getFrequencyAdjustment(transforms, i);
-    
-    if (previousAdjustment >= 0 and adjustment <= 0) {
-      // Center it to the closer one
-      masses[numMasses - 1].centerOfMass = i - (previousAdjustment < -adjustment);
-      // Put a pointer to the array element
-      masses[numMasses - 1].centerOfMassAmp
-        = amplitudes + masses[numMasses - 1].centerOfMass;
-      masses[numMasses - 1].centerOfMassPhase
-        = accumulatedPhases + masses[numMasses - 1].centerOfMass;
+
+    if (std::abs(adjustment) < freqThreshold) {
+      // We are in the center
+      if (freshState) {
+        // If we came from up,
+        // update the center of mass
+        if (amplitudes[i] > amplitudes[centerOfMass]) {
+          centerOfMass = i;
+        }
+      } else {
+        // If we came from down,
+        // update the split point
+        if (amplitudes[i] < amplitudes[splitPoint]) {
+          splitPoint = i;
+        }
+      }
+    } else if (
+        adjustment > freqThreshold and 
+        previousAdjustment <= freqThreshold and
+        not freshState
+        ) {
+      // If we are crossing up
+      // and we came from down
+
+      // Finish the mass 
+      masses[numMasses].rightLength = splitPoint - centerOfMass;
+      numMasses += 1;
+
+      // and make a new one
+      masses[numMasses].leftLength = i - splitPoint - 1;
+      masses[numMasses].centerOfMass = i;
+      masses[numMasses].centerOfMassAmp = amplitudes + i;
+      masses[numMasses].centerOfMassPhase = accumulatedPhases + i;
+
+      // Reset the state
+      freshState = true;
+    } else if (
+        adjustment < -freqThreshold and
+        previousAdjustment >= -freqThreshold and
+        freshState
+        ) {
+      // If we are crossing down
+      // and we came from up
+      
+      // So we can get a clear center
+      if (amplitudes[i] > amplitudes[centerOfMass]) {
+        centerOfMass = i;
+      }
+
+      // Take the center of mass
+      masses[numMasses].centerOfMass = centerOfMass;
+
+      // Update the pointers
+      masses[numMasses].centerOfMassAmp = amplitudes + centerOfMass;
+      masses[numMasses].centerOfMassPhase = accumulatedPhases + centerOfMass;
+
       // The left length is the
       // center of mass minus the start index
-      masses[numMasses - 1].leftLength = 
-        masses[numMasses - 1].centerOfMass - masses[numMasses - 1].leftLength;
-      // Add it to the masses
-    } else if (previousAdjustment < 0 and adjustment > 0) {
-      // goes up until previous adjustment
-      masses[numMasses - 1].rightLength = 
-        i - 1 - masses[numMasses - 1].centerOfMass;
+      masses[numMasses].leftLength = centerOfMass - splitPoint - 1;
 
-      // Make a new mass
-      // Set the temporary left length
-      // to equal the start index
-      masses[numMasses].leftLength = i;
-      numMasses++;
+      freshState = false;
     }
+
+    if (adjustment > freqThreshold) {
+      // Reset the center of mass
+      centerOfMass = i;
+    } else if (adjustment < -freqThreshold) {
+      // reset the split point
+      splitPoint = i;
+    }
+
     previousAdjustment = adjustment;
   }
 
-  masses[numMasses-1].rightLength = 
-    transformSize - 1 - masses[numMasses-1].centerOfMass;
+  masses[numMasses].rightLength = transformSize - 1 - centerOfMass;
+  numMasses += 1;
 
   // Compute masses
   for(std::size_t massIndex = 0; massIndex < numMasses; massIndex++) {
@@ -307,15 +393,16 @@ double BidirectionalTransportVocoder::getFrequencyAdjustment(
     std::complex<double> ** transforms,
     std::size_t i
     ) {
-  // SHOULD THIS
-  // BE A PLUS OR A MINUS
-  // PAPER SAYS PLUS
-  //
-  // Also for accumulation we need hopsize!!
-  return - std::imag(
-        (transforms[1][i] * std::conj(transforms[0][i])) / 
-        (std::real(transforms[0][i]) * std::real(transforms[0][i]) +
-         std::imag(transforms[0][i]) * std::imag(transforms[0][i])));
+  double denominator = 
+    std::real(transforms[0][i]) * std::real(transforms[0][i]) + 
+    std::imag(transforms[0][i]) * std::imag(transforms[0][i]);
+  if (denominator == 0) {
+    return 0;
+  } else {
+    std::complex<double> numerator =
+      transforms[1][i] * std::conj(transforms[0][i]);
+    return -std::imag(numerator/denominator);
+  }
 }
 
 void BidirectionalTransportVocoder::plotSegmentation(
@@ -324,7 +411,7 @@ void BidirectionalTransportVocoder::plotSegmentation(
     std::size_t numMasses
     ) {
 
-  double AMPLIFY = 0.001;
+  double AMPLIFY = 0.01;
   
   std::vector<double> reassigned(transformSize);
   for (int i = 0; i < transformSize; i++) {

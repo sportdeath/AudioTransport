@@ -5,6 +5,8 @@
 #include <cmath>
 #include <complex>
 
+#include <iostream>
+
 #include "Vocoder/Transport.hpp"
 #include "Vocoder/SpectralMass.hpp"
 
@@ -223,18 +225,8 @@ void Transport::transport<SpectralMass>(
     massesOut[assignmentIndex].centerOfMassAmp = currentAmp + leftLength;
     massesOut[assignmentIndex].centerOfMassPhase = currentPhase + leftLength;
 
-    // rotate from peak0 to peak1
-    double peakPhase = rotate(
-        mass0.centerOfMassPhase[0],
-        mass1.centerOfMassPhase[0],
-        interpolationFactor);
-
-    double newPeakPhase = 
-      mass0.centerOfMassPhase[0] * (1 - interpolationFactor) +
-      mass1.centerOfMassPhase[0] * interpolationFactor;
-
-    double phaseAdjustment = newPeakPhase - peakPhase;
-
+    double prevPhase0 = (mass0.centerOfMassPhase - leftLength)[0];
+    double prevPhase1 = (mass1.centerOfMassPhase - leftLength)[0];
     for (std::size_t i = 0; i < totalLength; i++) {
       long offset = i - leftLength;
 
@@ -246,29 +238,50 @@ void Transport::transport<SpectralMass>(
         std::pow(scale0 * amp0, 1 - interpolationFactor) *
         std::pow(scale1 * amp1, interpolationFactor);
 
-      // Rotate from phase0 to phase1
+      // Unwrap phase
       double phase0 = (mass0.centerOfMassPhase + offset)[0];
       double phase1 = (mass1.centerOfMassPhase + offset)[0];
-      double phaseOut = rotate(
-          phase0,
-          phase1,
-          interpolationFactor);
+      double unwrappedPhase0 = unwrap(phase0, prevPhase0);
+      double unwrappedPhase1 = unwrap(phase1, prevPhase1);
+
+      // Average
+      double phaseOut = 
+        unwrappedPhase0 * (1 - interpolationFactor) + 
+        unwrappedPhase1 * interpolationFactor;
+      phaseOut = unwrappedPhase0;
       
-      // Rotate into peak frame
-      phaseOut += phaseAdjustment;
-
-      // The peak phase averages the accumulated phases
-
-      // Convolve with data that is
-      // scaled by assignment mass
       // and set to output
       (currentAmp + i)[0] = ampOut;
       (currentPhase + i)[0] = phaseOut;
+
+      prevPhase0 = unwrappedPhase0;
+      prevPhase1 = unwrappedPhase1;
+    }
+
+    double desiredPeakPhase = 
+      mass0.centerOfMassPhase[0] * (1 - interpolationFactor) +
+      mass1.centerOfMassPhase[0] * interpolationFactor;
+
+    double peakPhase = (currentPhase + leftLength)[0];
+
+    double adjustment = desiredPeakPhase - peakPhase;
+
+    for (std::size_t i = 0; i < totalLength; i++) {
+      (currentPhase + i)[0] += adjustment;
     }
 
     currentAmp += totalLength;
     currentPhase += totalLength;
   }
+}
+
+double Transport::unwrap(
+    double phase,
+    double previousPhase) {
+  double desiredDifference = 
+    std::fmod(phase - previousPhase + M_PI, 2 * M_PI);
+  if (desiredDifference < 0) desiredDifference += 2 * M_PI;
+  return desiredDifference + previousPhase - M_PI;
 }
 
 // Rotate phase in the same direction...

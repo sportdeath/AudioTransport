@@ -22,10 +22,13 @@ ISTFT::ISTFT(unsigned int hopSize_, unsigned int windowSize_) :
 
   // Calculate a window
   Window::rootHannWindow(synthesisWindow, windowSize);
-  
+
   // Clear the audio buffer
   for (int i = 0; i < windowSize; i++) {
     audioBuffer[i] = 0;
+
+    // TODO: delete
+    // synthesisWindow[i] = 1;
   }
 
   // Make a plan!

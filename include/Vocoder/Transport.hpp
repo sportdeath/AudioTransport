@@ -78,6 +78,11 @@ class Transport {
         double phase0,
         double phase1,
         double interpolationFactor);
+
+    inline
+    static double unwrap(
+        double phase,
+        double previousPhase);
 };
 
 #include "../../src/Transport.cpp"

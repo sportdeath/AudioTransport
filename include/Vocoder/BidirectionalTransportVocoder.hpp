@@ -12,8 +12,8 @@ class BidirectionalTransportVocoder : public PhaseVocoder {
     int sampleRate;
     int windowSize;
     int hopSize;
+    double freqThreshold;
 
-    double GROUP_DELAY_D_THRESHOLD = 100000000;
     double * amplitudes0;
     double * amplitudes1;
     double * phases0;
@@ -38,7 +38,7 @@ class BidirectionalTransportVocoder : public PhaseVocoder {
         std::complex<double> * transform
         );
 
-    std::size_t segementIntoMasses(
+    std::size_t segmentIntoMasses(
         std::complex<double> ** transforms,
         double * amplitudes,
         double * accumulatedPhases,

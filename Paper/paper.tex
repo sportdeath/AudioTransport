@@ -21,6 +21,18 @@
 
 \section{Introduction}
 
+\section{Contributions}
+
+I developed an algorithm that
+
+techniques to
+reconstruct an audio signal
+
+I use a new technique to segment the spectrum into smaller pieces.
+Phase reconstruction
+
+I also implemented the algorithm in real-time to 
+
 \section{Related Work}
 Vocoders existed in the 70's.
 vocoders take a monophonic source and spread it out over a range of pitches. requires harmonic similarity between the sources. Voices have lots of noise so it is easy - Daft punk. 
@@ -76,15 +88,36 @@ Vertical and horizontal incoherence.
 \section{Algorithm Overview}
 
 \subsection{STFT}
-Weighted overlap add
-root hann window
-Let $M$ be the window size, $R$ be the hopsize.
 
-We are guaranteed perfect reconstruction in the absense of spectral modifications if
-\begin{align*}
-  \sum_m w^2(n - mR) = 1,\;\forall n\in\mathbb{Z}
-\end{align*}
-I choose the to use the root Hann window.
+Like almost all spectral algorithms, this one begins with a short-time Fourier transform (STFT) and ends with it's inverse (ISTFT).
+At the cost of reduced temporal resolution, the STFT gives us access to the spectral contents of the signal in time.
+
+The STFT fourier transform performs a discrete time Fourier transforms on windows of size $M$ of the original signal $x(n)$. 
+These windows are separated by a hop size of $R$. The $m$th frame of the STFT is
+
+\begin{align}
+  X_m(\omega) = 
+  \sum_{n = -\frac{M-1}{2}}^{\frac{M - 1}{2}} 
+  x_m(n)w(n)e^{-i\omega n}
+\end{align}
+
+$x_m(n) = x(n + mR)$ 
+is a buffer of size $M$ of the original signal
+shifted $R$ samples from the previous buffer.
+$w(n)$ is the synthesis window of size $M$.
+
+The ISTFT can then reconstruct the
+original signal by
+
+
+In the absence of spectral modifications, 
+we can achieve perfect reconstruction 
+of a signal given that the synthesis and analysis windows obey
+\begin{align}
+  \sum_m w(n - mR)f(n - mR) = 1,\; \forall n\in \mathbb{Z}
+\end{align}
+
+I chose to use the root Hann window, which gives perfect reconstruction when $R = \frac{M}{2k}$ for $k\in\mathbb{Z}$.
 \begin{align*}
   w(n) = 
   \cos(\pi n / M), 
@@ -96,6 +129,15 @@ I choose the to use the root Hann window.
 \end{align*}
 
 \subsection{Spectrum Segmentation}
+
+In order to resolve the vertical incoherence --- the phasing issues within the frame --- my solution like others is to lock regions of the spectrum where phase relations are important. Rather than performing a transport over all bins, bins which are used to represent the same spectral information are lumped together. 
+
+TODO
+Many applications use simple peak finding, which is good in most appliccations but fails in certain settings.
+Instead I determine where to split the window based on the \emph{reassigned frequency}.
+The reas
+
+
 In order to fix the spec
 Techniques mention peak finding.
 However peak finding does not give a great sense of where to put boundaries. 
@@ -138,6 +180,14 @@ This maintains that the energy of the signal is constant and that the phase rota
 However, this rotation can happen in multiple directions:
 
 \section{Implementation}
+
+I implemented the above algorithm in real-time as an audio effect in C++.
+The program listens to two streams of audio
+which can be sent to it from a any diginal audio workstation, like Ableton Live.
+It then produces a new stream of audio that is interpolated between the two original streams according to a MIDI value.
+
+
+
 Real time.
 \texttt{fftw}
 
