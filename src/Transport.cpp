@@ -225,49 +225,39 @@ void Transport::transport<SpectralMass>(
     massesOut[assignmentIndex].centerOfMassAmp = currentAmp + leftLength;
     massesOut[assignmentIndex].centerOfMassPhase = currentPhase + leftLength;
 
-    double prevPhase0 = (mass0.centerOfMassPhase - leftLength)[0];
-    double prevPhase1 = (mass1.centerOfMassPhase - leftLength)[0];
-    for (std::size_t i = 0; i < totalLength; i++) {
-      long offset = i - leftLength;
-
-      // Scale the amplitude
-      double amp0 = (mass0.centerOfMassAmp + offset)[0];
-      double amp1 = (mass1.centerOfMassAmp + offset)[0];
-
-      double ampOut = 
-        std::pow(scale0 * amp0, 1 - interpolationFactor) *
-        std::pow(scale1 * amp1, interpolationFactor);
-
-      // Unwrap phase
-      double phase0 = (mass0.centerOfMassPhase + offset)[0];
-      double phase1 = (mass1.centerOfMassPhase + offset)[0];
-      double unwrappedPhase0 = unwrap(phase0, prevPhase0);
-      double unwrappedPhase1 = unwrap(phase1, prevPhase1);
-
-      // Average
-      double phaseOut = 
-        unwrappedPhase0 * (1 - interpolationFactor) + 
-        unwrappedPhase1 * interpolationFactor;
-      phaseOut = unwrappedPhase0;
-      
-      // and set to output
-      (currentAmp + i)[0] = ampOut;
-      (currentPhase + i)[0] = phaseOut;
-
-      prevPhase0 = unwrappedPhase0;
-      prevPhase1 = unwrappedPhase1;
-    }
-
     double desiredPeakPhase = 
       mass0.centerOfMassPhase[0] * (1 - interpolationFactor) +
       mass1.centerOfMassPhase[0] * interpolationFactor;
 
-    double peakPhase = (currentPhase + leftLength)[0];
-
-    double adjustment = desiredPeakPhase - peakPhase;
+    double phase0Adjustment = desiredPeakPhase - mass0.centerOfMassPhase[0];
+    double phase1Adjustment = desiredPeakPhase - mass1.centerOfMassPhase[0];
 
     for (std::size_t i = 0; i < totalLength; i++) {
-      (currentPhase + i)[0] += adjustment;
+      long offset = i - leftLength;
+
+      // Scale the amplitude
+      double amp0 = scale0 * (mass0.centerOfMassAmp + offset)[0];
+      double amp1 = scale1 * (mass1.centerOfMassAmp + offset)[0];
+
+      double phase0 = (mass0.centerOfMassPhase + offset)[0];
+      double phase1 = (mass1.centerOfMassPhase + offset)[0];
+
+      phase0 += phase0Adjustment;
+      phase1 += phase1Adjustment;
+
+      std::complex<double> complex0 = std::polar(amp0, phase0);
+      std::complex<double> complex1 = std::polar(amp1, phase1);
+
+      std::complex<double> complexOut = 
+        complex0 * (1 - interpolationFactor) + 
+        complex1 * interpolationFactor;
+
+      // Amp out
+      (currentAmp + i)[0] = std::abs(complexOut);
+      (currentPhase + i)[0] = std::arg(complexOut);
+
+      //(currentAmp + i)[0] = amp0;
+      //(currentPhase + i)[0] = rotate(phase0, phase1, interpolationFactor);
     }
 
     currentAmp += totalLength;

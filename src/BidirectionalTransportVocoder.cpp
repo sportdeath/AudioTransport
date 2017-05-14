@@ -71,8 +71,6 @@ void BidirectionalTransportVocoder::processFrameTransform(
     std::complex<double> * transformOut
     ) {
 
-  // interpolationFactor = 0.5;
-
   // Convert to polar
   CoordinateTransforms::cartesianToPolar(
       transforms0[0],
@@ -129,6 +127,9 @@ void BidirectionalTransportVocoder::processFrameTransform(
       masses1
       );
 
+  //if (numMasses0 > 0) numMasses0 = 1;
+  //if (numMasses1 > 0) numMasses1 = 1;
+
   // Compute transformation matrix
   std::size_t numAssignments = 
     Transport::massAssignment<SpectralMass>(
@@ -166,9 +167,9 @@ void BidirectionalTransportVocoder::processFrameTransform(
       );
 
   //unsegment(
-      //masses0,
+      //masses1,
       ////1,
-      //numMasses0,
+      //numMasses1,
       //transformOut
       //);
 
