@@ -214,8 +214,8 @@ void Transport::transport<SpectralMass>(
     double scale1 = assignmentMasses[assignmentIndex]/mass1.mass;
 
     // compute new data
-    std::size_t leftLength = std::min(mass0.leftLength, mass1.leftLength);
-    std::size_t rightLength = std::min(mass0.rightLength, mass1.rightLength);
+    std::size_t leftLength = std::max(mass0.leftLength, mass1.leftLength);
+    std::size_t rightLength = std::max(mass0.rightLength, mass1.rightLength);
 
     std::size_t totalLength = leftLength + rightLength + 1;
 
@@ -228,30 +228,25 @@ void Transport::transport<SpectralMass>(
     double phase0Adjustment = desiredPeakPhase - mass0.centerOfMassPhase[0];
     double phase1Adjustment = desiredPeakPhase - mass1.centerOfMassPhase[0];
 
-    for (std::size_t i = 0; i < totalLength; i++) {
-      long offset = i - leftLength;
-
-      // Scale the amplitude
+    for (int offset = -int(mass0.leftLength); offset <= int(mass0.rightLength); offset++) {
       double amp0 = scale0 * (mass0.centerOfMassAmp + offset)[0];
-      double amp1 = scale1 * (mass1.centerOfMassAmp + offset)[0];
-
       double phase0 = (mass0.centerOfMassPhase + offset)[0];
-      double phase1 = (mass1.centerOfMassPhase + offset)[0];
-
       phase0 += phase0Adjustment;
-      phase1 += phase1Adjustment;
 
-      std::complex<double> complex0 = std::polar(amp0, phase0);
-      std::complex<double> complex1 = std::polar(amp1, phase1);
-
-      std::complex<double> complexOut = 
-        complex0 * (1 - interpolationFactor) + 
-        complex1 * interpolationFactor;
-
-      // Amp out
       long outIndex = centerOfMass + offset;
       if (outIndex >=  0 and outIndex < transformSize) {
-        transformOut[outIndex] += complexOut;
+        transformOut[outIndex] += std::polar(amp0, phase0) * (1 - interpolationFactor);
+      }
+    }
+
+    for (int offset = -int(mass1.leftLength); offset <= int(mass1.rightLength); offset++) {
+      double amp1 = scale1 * (mass1.centerOfMassAmp + offset)[0];
+      double phase1 = (mass1.centerOfMassPhase + offset)[0];
+      phase1 += phase1Adjustment;
+
+      long outIndex = centerOfMass + offset;
+      if (outIndex >=  0 and outIndex < transformSize) {
+        transformOut[outIndex] += std::polar(amp1, phase1) * interpolationFactor;
       }
     }
   }
@@ -307,14 +302,3 @@ double Transport::rotate(
 // output!
 
 
-    //for (int i = -mass0.leftLength; i < mass0.rightLength; i++) {
-      //int index = centerOfMass + i;
-
-      //if (index < 0 or index > transformSize) continue;
-
-      //double amp0 = scale0 * (mass0.centerOfMassAmp + i)[0];
-      //double phase0 = (mass0.centerOfMassPhase + i)[0];
-      //phase0 += phase0Adjustment;
-
-      //transformOut[index] += std::polar(amp0, phase0) * (1 - interpolationFactor);
-    //}
