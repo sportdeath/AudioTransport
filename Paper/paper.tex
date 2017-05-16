@@ -5,6 +5,7 @@
 \usepackage{amsfonts}
 \usepackage{graphicx}
 \usepackage{url}
+\usepackage{algpseudocode}
 
 \newcommand{\fft}{\text{FFT}}
 
@@ -130,6 +131,7 @@ I chose to use the root Hann window, which gives perfect reconstruction when $R 
 
 \subsection{Spectrum Segmentation}
 
+As we 
 In order to resolve the vertical incoherence --- the phasing issues within the frame --- my solution like others is to lock regions of the spectrum where phase relations are important. Rather than performing a transport over all bins, bins which are used to represent the same spectral information are lumped together. 
 
 TODO
@@ -161,23 +163,149 @@ d(root hann window)
 
 Nice plot.
 
-\subsection{Phase Accumulation}
-Horizontal coherence.
-\begin{align*}
-  \theta' = \theta + \frac{M}{f_s}\hat{\omega} 
-\end{align*}
+$|S| \leq N$
+Segment into how at at most $N$ segments $m$ with arrays $X_m$ 
+with center of masses $c_m$ and masses $\rho_m$.
+\begin{align}
+  \sum_{m\in S} &\rho(m) = 1
+\end{align}
+
 
 \subsection{Transport}
 
-Combinations of frequencies:
-rotating in the same direction
+After two audio signals have been segmented into $S^0$ and $S^1$
+we then compute a transformation matrix
+$T:S^0\times S^1\to \mathbb{R}$
+that represents the transfer of mass from one segment to the other. 
+We want this matrix to minimize the distance the centers of each segment move.
+We do not want to transport a negative mass or more mass than is available:
 \begin{align}
-  X_{01}(\omega) = 
-  X_0(\omega)^{1-k}
-  X_1(\omega)^k
+  0 < T(m^0, m^1) \leq \max(\rho(m^0), \rho(m^1))
 \end{align}
-This maintains that the energy of the signal is constant and that the phase rotates from one state to the other.
-However, this rotation can happen in multiple directions:
+Additionally, we want to constrain that all of the mass receives an assignment:
+\begin{align}
+  \rho(m^0) = &\sum_{m^1\in S^1} T(m^0, m^1)
+  \;
+  \forall m^0\in S^0
+  \\
+  \rho(m^1) = &\sum_{m^0\in S^0} T(m^0, m^1)
+  \;
+  \forall m^1\in S^1
+\end{align}
+%We want to construct a set of assignments $T$, where each assignment $n\in T$ 
+%assigns a mass $\rho_n$ to be transported between segments $m_n^0$ and $m_n^1$.
+%\begin{align}
+  %0 < \rho_n \leq \max(\rho_{m_n^0}, \rho_{m_n^1})
+%\end{align}
+%Additionally, we want to constrain that all of the mass receives an assignment:
+%\begin{align}
+  %\rho_m = &\sum_{\substack{n\in T,\\m_n^0 = m}} \rho_n 
+  %\;
+  %\forall m\in S^0
+  %\\
+  %\rho_m = &\sum_{\substack{n\in T,\\m_n^1 = m}} \rho_n 
+  %\;
+  %\forall m\in S^1
+%\end{align}
+Given constraints 6, 7, 8 we want to find the assignment $T$ that minimizes the 2-wasserstein distance between the segments.
+\begin{align}
+  \min_T &\sum_{\substack{m^0\in S^0\\ m^1\in S^1}} T(m^0, m^1)|c(m^0) - c(m^1)|^2
+\end{align}
+We can satisfy the constrains and approximate the using the following algorithm:
+
+Plot of overlapping pieces
+
+Using this algorithm, we guarantee that the number of assignments is bounded by $|T| \leq 2N - 1$.
+
+\subsection{Phase Accumulation}
+
+When we move a segment of the spectrum to a new pitch, 
+the phases within that section rotate either slower or faster.
+This change does not make an audible difference within a window itself,
+but it can cause interference in the overlap between windows known as \emph{horizontal incoherence}.
+
+Include plot
+
+One solution to this in time-stretching is to estimate the phase of the next frame based on its new instantaneous frequency. 
+If a bin with phase $\theta_i^\tau$ is oscillating at exactly $\hat{\omega}_i$, the phase of that bin in the next window $\theta_i^{\tau+1}$ will be
+\begin{align*}
+  \theta(i, \tau+1) = 
+  \theta(i,\tau) + \frac{M}{f_s}\hat{\omega}
+\end{align*}
+This model is good for , but it breaks down at transients.
+Reinitialization steps.
+
+
+Fortunately however, we have at our disposal the phases of not one but two pitches.
+The center of  will oscillate at $(1 - k)\hat{\omega}(m_0) + \hat{\omega}^1_m$.
+Therefore we can interpolate.
+
+For every bin $i$ keep track of the accumulated phase $\theta_i^\tau$ which we want to have the following properties:
+
+\begin{align*}
+  \Theta_i^\tau &\approx
+  \sum_{t = 0}^\tau 
+  \frac{R}{f_s}\hat{\omega}_i^t\\
+  \Theta_i^\tau &= \theta_i^\tau\pmod{2\pi}
+\end{align*}
+
+
+
+Therefore we want the synthesis phase of $\theta_i$ at the center of mass of segment $m$ is
+\begin{align*}
+  \theta_{c_m} = (1-k)\Theta_{c_m^0} + k\Theta_{c_m^1}
+\end{align*}
+
+To preserve the vertical coherence between all bins within a singular
+we add $\theta_{c_m}' - \theta_{c_m}$ to all pitches
+\begin{align*}
+  \theta_i' = \theta_i + \theta_{c_m}' - \theta_{c_m}
+\end{align*}
+
+This way all the local relationships between phases are kept.
+
+\subsection{Resynthesis}
+
+Once the phases of each segment have been centered around the synthesis phase,
+we can synthesize a new spectrum:
+
+\begin{algorithmic}
+\\
+\For{$n\in\left[0,\frac{M-1}{2}\right]$}
+  \State{$Y(n) \leftarrow 0$}
+  \Comment{Clear the output}
+\EndFor
+\\
+\For{$m_0\in S_0$, $m_1\in S_1$}
+  \\
+  \State{$\hat{n} \leftarrow (1 - k)c(m_0) + kc(m_1)$}
+  \Comment{$\hat{n}$ is the new COM index}
+  \State{$\hat{\Theta} \leftarrow (1 - k)\Theta(c(m_0)) + k\Theta(c(m_1))$}
+  \Comment{$\theta'$ is the new COM phase}
+  \\
+  \For{$n\in U(m_0)$}
+    \\
+    \State{$n' \leftarrow n + \hat{n} - c(m_0)$}
+    \State{$\Theta' \leftarrow \Theta_0(n) + \hat{\Theta} - \Theta_0(c(m_0))$}
+    \\
+    \State{%
+      $Y(n') 
+      \leftarrow 
+      Y(n') +
+      (1 - k)
+      \frac{T(m_0, m_1)}{\rho(m_0)}
+      |X_0(n)|
+      e^{i\theta'}$
+    }
+    \\
+  \EndFor
+\EndFor
+\end{algorithmic}
+
+
+reentered by the phase accumulation, 
+we can simply linearly interpolate the audio and add it to the spectrum.
+Since the 
 
 \section{Implementation}
 
@@ -199,6 +327,9 @@ video
 github link
 
 \section{Conclusion}
+
+If one of the sources is time varying the source material quickly deteriorates.
+Great for constant sounds.
 
 \section{References}
 
