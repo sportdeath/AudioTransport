@@ -18,7 +18,7 @@ BidirectionalTransportVocoder::BidirectionalTransportVocoder(
   windowSize(windowSize_),
   sampleRate(sampleRate_)
 {
-  freqThreshold = sampleRate/double(windowSize);
+  freqThreshold = 1*sampleRate/double(windowSize);
   amplitudes0 = new double[transformSize];
   amplitudes1 = new double[transformSize];
   phases0 = new double[transformSize];

@@ -11,15 +11,15 @@
 #include <Vocoder/BidirectionalTransportVocoder.hpp>
 
 int main() {
-  //int hopSize = 4096;
+  //int hopSize = 1024;
+  //int hopSize = 1024;
   int hopSize = 1024;
-  //int hopSize = 2048;
   //int hopSize = 512;
   //int windowSize = 2048;
   int windowSize = 4096;
   int sampleRate = 44100;
   int numOutputChannels = 2;
-  int numInputChannels = 6;
+  int numInputChannels = 8;
 
   int inputDeviceNum;
   int outputDeviceNum;
@@ -84,18 +84,11 @@ int main() {
         output[1]
         );
 
-    //for (int channel = 0; channel < 2; channel ++) {
-      //for (int i = 0; i < hopSize; i++) {
-        //output[0][i] = 
-          //output[0][i] * vocoderVolume + 
-          //(audio[0][i] * (1 - interpolationFactor) + audio[2][i] *interpolationFactor) * linearVolume +
-          //audio[4][i];
-        //output[1][i] = 
-          //output[1][i] * vocoderVolume + 
-          //(audio[1][i] * (1 - interpolationFactor) + audio[3][i] *interpolationFactor) * linearVolume +
-          //audio[5][i];
-      //}
-    //}
+    for (int channel = 0; channel < 2; channel ++) {
+      for (int i = 0; i < hopSize; i++) {
+        output[channel][i] += audio[channel + 6][i];
+      }
+    }
 
     outputStream.write(output);
   };
