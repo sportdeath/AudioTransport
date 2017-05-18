@@ -1,0 +1,438 @@
+\documentclass[12pt]{article}
+
+\usepackage{amsthm}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\newcommand{\fft}{\text{FFT}}
+\newcommand{\ifft}{\text{IFFT}}
+
+\title{Audio Transport}
+\date{\today}
+\author{Trevor Henderson}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  yoyoyo.
+\end{abstract}
+
+\section{Introduction}
+
+\section{Contributions}
+
+I developed an algorithm that
+
+techniques to
+reconstruct an audio signal
+
+I use a new technique to segment the spectrum into smaller pieces.
+Phase reconstruction
+
+I also implemented the algorithm in real-time to 
+
+\section{Related Work}
+Vocoders existed in the 70's.
+vocoders take a monophonic source and spread it out over a range of pitches. requires harmonic similarity between the sources. Voices have lots of noise so it is easy - Daft punk. 
+
+realtime pitch shifting has become very popular in software and hardware. since the early 2000's.
+Traditional pitch shifters were granular.
+Updates to algorithms use phase vocoders.
+
+Real time pitch shifting is a key element to autotune, which charachterized the music of the mid 2000's and is still popular today.
+
+Harmonizers sound similar to vocoders. Take a pitch and pitch shift it into new chords.
+
+In 2008 Melodyne pitch shifts individual elements without distoring the sound.
+They must be processed beforehand and then can be manipulated in realtime
+
+The 2012 product can manipulate polyphonic audio in realtime.
+http://www.zynaptiq.com/pitchmap/
+
+Most of this work has been proprietary and out of research. 
+
+So far as I can 
+
+processing but no synthesis.
+\url{http://www.maths.lu.se/fileadmin/maths/personal_staff/Andreas_Jakobsson/ElvanderAKJ16_icassp_final.pdf}
+
+http://remi.flamary.com/biblio/flamary2016optimal.pdf
+
+\section{Optimal Transport}
+
+Discussion of optimal transport.
+
+Distance. 
+
+It also allows for you to interpolate between the two shapes along the trajectory.
+
+In 1 dimension it is a solved problem.
+
+For any dimensionality higher than 1, fast computation of the wasserstein2 distance is 
+
+Optimal transport is however only defined for, nonnegative masses.
+Audio has phase.
+Initial attempts to tackle the problem of phase involved formulating the transport problem differently.
+But you can't hear the distance between two sinusoids that are played at the same pitch but at different phases
+But you can hear the ``distance'' between two pitches.
+
+\section{Phase Vocoders}
+As noted by, 
+audio quality is .
+
+Vertical and horizontal incoherence.
+
+
+\section{Algorithm Overview}
+
+\subsection{STFT}
+
+Like almost all spectral algorithms, this one begins with a short-time Fourier transform (STFT) and ends with it's inverse (ISTFT).
+At the cost of reduced temporal resolution, the STFT gives us access to the spectral components of the signal in time.
+
+The STFT performs a discrete time Fourier transforms on windows of size $M$ of the original signal $x(n)$.
+These windows are separated by a hop size of $R$. The $\tau$th frame of the STFT is
+\begin{align}
+  X(\omega, \tau) = 
+  \text{DTFT}(\tilde{x}(n, \tau)w(n))
+\end{align}
+where
+\begin{align}
+  \tilde{x}(n,\tau) = x(n + \tau R)
+\end{align}
+is a buffer of the original signal, shifted $R$ samples from the previous buffer and $w(n)$ is the synthesis window.
+$w(n)$ is defined to be nonzero for $M$ samples, 
+$n\in\left[-\frac{M - 1}{2}, \frac{M - 1}{2}\right]$, so only the $M$ most recent samples of $x(n)$ need to be kept in memory.
+
+After some computation, 
+we produce frames $Y(\omega, \tau)$ 
+which we want to use to synthesize the signal $y(n)$.
+We perform this ISTFT using the weighted overlap add method.
+As the name suggests, this method works by
+overlapping adjacent frames of the IDTFT, 
+weighting them by an analysis window $f(n)$ 
+and then adding them together.
+The weighting helps to suppress audible discontinuities at frame boundaries
+which prevents artifacts in highly nonlinear filters such as the one this paper describes.
+\begin{align}
+  \tilde{y}(n,\tau) &= \text{IDTFT}(Y(\omega, \tau))
+  \\
+  y(n) &= \sum_\tau f(n - \tau R)\tilde{y}(n - \tau R,\tau)
+\end{align}
+
+Note that synthesizing a single sample of $y(n)$ requires overlapping
+$\frac{M}{R}$ frames which adds a latency of $M$ samples between $y$ and it's sources.
+
+In the absence of spectral modifications, 
+we can achieve perfect reconstruction 
+of a signal transformed by the STFT and ISTFT given
+that the synthesis and analysis windows obey
+\begin{align}
+  \sum_\tau w(n - \tau R)f(n - \tau R) = 1,\; \forall n\in \mathbb{Z}
+\end{align}
+I chose to use the square root of the Hann window as both the analysis and frequency window
+which gives perfect reconstruction when $R = \frac{M}{2k}$ for $k\in\mathbb{Z}$.
+\begin{align}
+  w(n) = 
+  f(n) =
+  \cos(\pi n / M)
+  %, 
+  %n\in
+  %\left[
+  %-\frac{M-1}{2}, 
+  %\frac{M-1}{2}
+%\right]
+\end{align}
+
+For actual computation we replace, the DTFT and IDTFT with the FFT and IFFT respectively. 
+The FFT has $M$ bins $n\in\left[-\frac{M - 1}{2}, \frac{M - 1}{2}\right]$.
+The frequency of the $n$th bin is given by
+\begin{align}
+  \omega = \frac{f_s n}{M}
+\end{align}
+where $f_s$ is sampling rate of the signal.
+Since the audio signal $x(n)$ is real, $X(\omega)$ is conjugate symmetric, so we only need to retain the positive bins $\left[0, \frac{M - 1}{2}\right]$ of the FFT.
+
+
+\subsection{Spectrum Segmentation}
+
+As we 
+In order to resolve the vertical incoherence --- the phasing issues within the frame --- my solution like others is to lock regions of the spectrum where phase relations are important. Rather than performing a transport over all bins, bins which are used to represent the same spectral information are lumped together. 
+
+TODO
+Many applications use simple peak finding, which is good in most appliccations but fails in certain settings.
+Instead I determine where to split the window based on the \emph{reassigned frequency}.
+The reas
+
+
+In order to fix the spec
+Techniques mention peak finding.
+However peak finding does not give a great sense of where to put boundaries. 
+The reassigned frequency can be computed by:
+\begin{align}
+  \hat{\omega}(\omega) = 
+  \omega + 
+  \Im\left\{%
+    \frac{X_\mathcal{D}(\omega)\cdot X^*(\omega)}{|X(\omega)|^2}
+  \right\}
+\end{align}
+where $X_\mathcal{D}$ is the spectrum of the $x$ with the window
+$w_\mathcal{D}(n) = \frac{d}{dt}w(n)$:
+\begin{align}
+  X_\mathcal{D}(\omega) = \fft\left(w_\mathcal{D}(n)x(n)\right)
+\end{align}
+The derivative of our chosen window, the square root of the Hann window is:
+\begin{align}
+   w_\mathcal{D}(n) = -\frac{\pi f_s}{M}\sin\left(\frac{\pi n}{M}\right)
+\end{align}
+
+TODO: Plot of segmentation
+TODO: Formalize segmentation algorithm
+
+This algorithm segments the spectrum into how at at most $N$ segments $s\in S$.
+Each is has a center $c(s)$ and a set of indices $U(s)$.
+The mass of each segment is given by 
+\begin{align}
+  \rho(s) = \frac{\sum_{n\in U(s)}|X(n)|}{\sum_{n}|X(n)|}
+\end{align}
+Note that
+\begin{align}
+  \sum_{s\in S} \rho(s) = 1
+\end{align}
+
+\subsection{Transport}
+
+After two audio signals have been segmented into $S_0$ and $S_1$
+we then compute a transformation matrix
+$T\in \mathbb{R}^{S_0\times S_1}$
+whose entries represents the transfer of mass from one segment to the other. 
+We want to construct this matrix so that the total movement of mass (or work) is minimized.
+%We want this matrix to minimize the distance the centers of each segment move.
+We do not want to transport a negative mass or more mass than is available:
+\begin{align}
+  0 < T(s_0, s_1) \leq \max(\rho(s_0), \rho(s_1))
+\end{align}
+Additionally, we want to constrain that all of the mass receives an assignment:
+\begin{align}
+  \rho(s_0) = &\sum_{s_1\in S_1} T(s_0, s_1)
+  \;
+  \forall s_0\in S_0
+  \\
+  \rho(s_1) = &\sum_{s_0\in S_0} T(s_0, s_1)
+  \;
+  \forall s_1\in S_1
+\end{align}
+%We want to construct a set of assignments $T$, where each assignment $n\in T$ 
+%assigns a mass $\rho_n$ to be transported between segments $m_n^0$ and $m_n^1$.
+%\begin{align}
+  %0 < \rho_n \leq \max(\rho_{m_n^0}, \rho_{m_n^1})
+%\end{align}
+%Additionally, we want to constrain that all of the mass receives an assignment:
+%\begin{align}
+  %\rho_m = &\sum_{\substack{n\in T,\\m_n^0 = m}} \rho_n 
+  %\;
+  %\forall m\in S^0
+  %\\
+  %\rho_m = &\sum_{\substack{n\in T,\\m_n^1 = m}} \rho_n 
+  %\;
+  %\forall m\in S^1
+%\end{align}
+Given these constraints we want to find the assignment $T$ that minimizes the 2-Wasserstein distance between the segments.
+\begin{align}
+  \min_T &\sum_{\substack{s_0\in S^0\\ s_1\in S^1}} T(s_0, s_1)|c(s_0) - c(s_1)|^2
+\end{align}
+We compute such a $T$ with algorithm~\ref{transport}.
+%We can satisfy the constrains and approximate the using the following algorithm:
+
+\begin{algorithm}
+  \caption{Compute Transformation Matrix}\label{transport}
+\begin{algorithmic}
+  \State{$T \leftarrow 0$}
+  \State{$i,j \leftarrow 0$}
+  \State{$\rho_0 \leftarrow s_0^i$}
+  \State{$\rho_1 \leftarrow s_1^j$}
+  \While{$i < |S_0|$ and $j < |S_1|$}
+    \If{$\rho_0 < \rho_1$}
+      \State{$T(s_0^i, s_1^j) \leftarrow \rho_0$}
+      \State{$i \leftarrow i + 1$}
+      \State{$\rho_1 \leftarrow \rho_1 - \rho_0$}
+      \State{$\rho_0 \leftarrow \rho(s_0^i)$}
+    \Else
+      \State{$T(s_0^i, s_1^j) \leftarrow \rho_1$}
+      \State{$j \leftarrow j + 1$}
+      \State{$\rho_0 \leftarrow \rho_0 - \rho_1$}
+      \State{$\rho_1 \leftarrow \rho(s_1^i)$}
+    \EndIf
+  \EndWhile
+\end{algorithmic}
+\end{algorithm}
+
+TODO: Plot of overlapping pieces
+
+TODO: Proof - talk to Justin
+
+%Using this algorithm, the number of assignments is $2N - 1$.
+
+%From this point we could perform an interpolation.
+%With interpolation factor $k$ the new peak index would be
+%\begin{align}
+  %c' = (1 - k)c(s_0) + k(c(s_1))
+%\end{align}
+%However we must first deal with the phase
+\newpage
+\subsection{Phase Accumulation}
+
+When we move a segment of the spectrum to a new pitch, 
+the phases within that section rotate either slower or faster.
+This change does not make an audible difference within a window itself,
+but it can cause interference in the overlap between windows known as \emph{horizontal incoherence}.
+
+Include plot
+
+One solution to this in time-stretching is to estimate the phase of the next frame based on its new instantaneous frequency. 
+If a sinusoid with phase $\theta(\omega, \tau)$ 
+is oscillating with instantaneous frequency $\hat{\omega}(\omega)$ over frame $\tau$, we would expect the phase of the next frame to be
+\begin{align}
+  \theta(\omega, \tau+1) = 
+  \theta(\omega,\tau) + \frac{R}{f_s}\hat{\omega}(\omega)
+\end{align}
+This model is good for signals which do not undergo rapid changes in frequency. 
+However it does a poor job of dealing with transients in audio that can happen from sharp note attacks and percussive sounds. 
+To cope with this, people employ reinitialization steps in frames where transients are detected, however this method is.
+
+Fortunately however, we have at our disposal the phases of not one but two pitches.
+The center of  will oscillate at $(1 - k)\hat{\omega}(m_0) + \hat{\omega}^1_m$.
+Therefore we can interpolate.
+
+For every bin $i$ keep track of the accumulated phase $\theta_i^\tau$ which we want to have the following properties:
+
+\begin{align}
+  \Theta_i^\tau &\approx
+  \sum_{t = 0}^\tau 
+  \frac{R}{f_s}\hat{\omega}_i^t\\
+  \Theta_i^\tau &= \theta_i^\tau\pmod{2\pi}
+\end{align}
+
+
+
+Therefore we want the synthesis phase of $\theta_i$ at the center of mass of segment $m$ is
+\begin{align}
+  \theta_{c_m} = (1-k)\Theta_{c_m^0} + k\Theta_{c_m^1}
+\end{align}
+
+To preserve the vertical coherence between all bins within a singular
+we add $\theta_{c_m}' - \theta_{c_m}$ to all pitches
+\begin{align}
+  \theta_i' = \theta_i + \theta_{c_m}' - \theta_{c_m}
+\end{align}
+
+This way all the local relationships between phases are kept.
+
+\subsection{Resynthesis}
+
+Compute new center.
+Compute new phase for horizontal coherence
+Shift phases to preserve vertical coherence
+linearly interpolate between the resulting
+
+Once the phases of each segment have been centered around the synthesis phase,
+we can synthesize a new spectrum:
+
+\begin{algorithmic}
+\\
+\For{all $n$}
+  \State{$Y(n) \leftarrow 0$}
+  \Comment{Clear the output}
+\EndFor
+\\
+\For{$m_0\in S_0$, $m_1\in S_1$}
+  \\
+  \State{$\hat{n} \leftarrow (1 - k)c(m_0) + kc(m_1)$}
+  \Comment{$\hat{n}$ is the new COM index}
+  \State{$\hat{\Theta} \leftarrow (1 - k)\Theta(c(m_0)) + k\Theta(c(m_1))$}
+  \Comment{$\theta'$ is the new COM phase}
+  \\
+  \For{$n\in U(m_0)$}
+    \\
+    \State{$n' \leftarrow n + \hat{n} - c(m_0)$}
+    \State{$\Theta' \leftarrow \Theta_0(n) + \hat{\Theta} - \Theta_0(c(m_0))$}
+    \\
+    \State{%
+      $Y(n') 
+      \leftarrow 
+      Y(n') +
+      (1 - k)
+      \frac{T(m_0, m_1)}{\rho(m_0)}
+      |X_0(n)|
+      e^{i\theta'}$
+    }
+    \\
+  \EndFor
+\EndFor
+\end{algorithmic}
+
+
+reentered by the phase accumulation, 
+we can simply linearly interpolate the audio and add it to the spectrum.
+Since the 
+
+\section{Implementation}
+
+I implemented the above algorithm in real-time as an audio effect in C++.
+The program listens to two streams of audio
+which can be sent to it from a any diginal audio workstation, like Ableton Live.
+It then produces a new stream of audio 
+whose spectrum is transported between the two
+according to a MIDI value.
+The program depends on FFTW (Fastest Fourier Transform in the West) for Fourier transforms, and the open source libraries PortAudio and PortMidi for audio and MIDI handling respectively.
+
+I work with a window size of 4096 samples and a sampling rate of 10 milliseconds. This is audible. 
+
+My code is available at
+\url{https://github.com/sportdeath/Vocoder}
+
+A video of my implimentation in action is available at.
+
+\section{Conclusion}
+
+As seen in the implimentation video, the sound quality is good for many types of signals.
+
+One of the most noticeable artifacts that still exists is the interference that results from a single pitch being mapped to many places.
+As the note splits and moves to new locations it begins to interfere with itself.
+This can cause a drop in volume at the very start or end of a transport.
+This could be fixed by requiring that the mapping be fixed.
+
+There are however sounds that the effect does not work for.
+If we try to transport to audio which has rapid changes in pitch, the source material deteriorates quickly because the transport map is not consistent.
+In certain settings however this can be used musically.
+If for example the we are transporting between two sounds with relatively constant pitch.
+
+But overall this the sound quality is good for many sounds.
+It has the potential to be used by DJs looking for interesting ways to mix between songs, and musicians looking to create new sounds.
+
+\section{References}
+
+Fundemental theory
+
+that phase vocoder one
+
+1d transport paper?
+
+STFT
+
+weighted overlap add
+
+fftw
+
+portaudio
+
+portmidi
+
+cite justin solomon
+
+\end{document}
