@@ -19,49 +19,88 @@
 \maketitle
 
 \begin{abstract}
-  yoyoyo.
+  This paper describes a new technique to interpolate between audio signals.
+  This technique uses optimal transport to move the pitches in one signal to the pitches in another.
+  Audibly this sounds like a generalized portamento, or glide between sounds.
+  The main contributions of this paper are methods to remove the different types of phasing distortion that can occur in a naive transport.
+  A real time implementation of the algorithm produces musical results.
 \end{abstract}
 
 \section{Introduction}
 
+A portamento is musical term used to describe one pitch sliding into another.
+The portamento can be found in almost all genres of music, 
+whether it be a slur in a vocal passage or in the twang of a slide guitar.
+It provides smooth way to transition between notes and even chords.
+
+However many instruments 
+Most acoustic keyboard instruments like the piano or organ example can't glide at all. 
+This is fixed with a pitch bend or for monophic instruments with a glide knob.
+These systems are difficult to move between chords of different shapes.
+Moreover all of these methods require that the glide happen between sounds of the same timbre.
+
+This paper describes a method for protamento not only between sounds with different timbres but between sounds from different instruments entirely.
+It does this using optimal transport, a problem mostly found in computer graphics and machine learning applications. 
+It also relies on machinery which is common to phase vocoders.
+
+
+This paper aims to fix that problem
+
+It functions by 
+
+
+And even instruments that can glide are often limited in the chord shapes they can glide between. 
+
+
+
+In music the portamento is limi
+Few instruments for example can glide smoothly between chords of different shapes, 
+For example gliding between  chords of different shapes becomes challenging and gliding between chords with different
+
+This paper aims to develop a generalized port
+
+Portamentos can also be polyphonic. For example the slide guitar technique, a technique commonly found in blues and country music, is in essense a polyphonic portamento between chords on the guitar.
+This paper aims to develop 
+sounds that map between the pitches of audio file.
+
+for example uses this sound 
+The goal of this paper is to 
+
 \section{Contributions}
 
-I developed an algorithm that
+I developed a new technique to interpolate between two audio signals using optimal transport.
+The optimal transport problem, discussed in detail later, is defined only for positive real inputs. 
+The spectra of an audio signal however is complex.
+It is natural that the transport be done on the amplitudes of these complex numbers, but this begs the question of what is to be done with the phase.
 
-techniques to
-reconstruct an audio signal
+This paper describes several types of distortion that can occur because of phasing issues and how to resolve them. 
+These problems are similar to those experienced in phase vocoders --- the technology that allows an audio's speed to be changed without changing the pitch.
+However the solutions posed in this paper improve upon the techniques used in phase vocoders and take advantage of the specifics of this problem.
 
-I use a new technique to segment the spectrum into smaller pieces.
-Phase reconstruction
-
-I also implemented the algorithm in real-time to 
+The new techniques introduced in this paper are 
+a method to segment the spectrum into groups whose local phase relations have audible significance.
+A method to update the phases of a piece of the spectrum that has been moved to a new pitch.
+A method to synthesize the audio 
 
 \section{Related Work}
-Vocoders existed in the 70's.
-vocoders take a monophonic source and spread it out over a range of pitches. requires harmonic similarity between the sources. Voices have lots of noise so it is easy - Daft punk. 
 
-realtime pitch shifting has become very popular in software and hardware. since the early 2000's.
-Traditional pitch shifters were granular.
-Updates to algorithms use phase vocoders.
+Many audio tools exist that modulate the pitch of an audio signal.
+The phase vocoder, which became practical in the early 2000's is now pervasive in all types of music production. 
+The phase vocoder is also the technology that enables auto-tune --- an effect which swept through the music industry in the mid-2000's and is still popular today.
 
-Real time pitch shifting is a key element to autotune, which charachterized the music of the mid 2000's and is still popular today.
+Several audio tools work to manipulate the pitches within an audio signal seperately.
+Melodyne is a popular tool in the music industry for correcting the pitches of notes.
+In 2008, Melodyne released a feature to adjust the pitches of individual notes in polyphonic music, allowing a user to rewrite the harmony of a song.
+This technology works on a static audio file, but in 2012 a product named QQQQ
+allowed for individual pitch manipulation to happen in real time.
 
-Harmonizers sound similar to vocoders. Take a pitch and pitch shift it into new chords.
-
-In 2008 Melodyne pitch shifts individual elements without distoring the sound.
-They must be processed beforehand and then can be manipulated in realtime
-
-The 2012 product can manipulate polyphonic audio in realtime.
+However neither of these products pitch shift on with granularity that this method does. In addition they rely on the user to select notes and decide where they want to go. While this is an extremely useful feature in the studio, it is hard to control in the live setting. This method allows the user to simply specify where they would like the pitches to go with another audio file and they can go there. 
 http://www.zynaptiq.com/pitchmap/
 
-Most of this work has been proprietary and out of research. 
-
-So far as I can 
-
-processing but no synthesis.
-\url{http://www.maths.lu.se/fileadmin/maths/personal_staff/Andreas_Jakobsson/ElvanderAKJ16_icassp_final.pdf}
-
-http://remi.flamary.com/biblio/flamary2016optimal.pdf
+Optimal transport has been used for audio processing before.
+However so far as I can tell, no paper has synthesized sound with optimal transport.
+Most of the existing papers in this cross section use optimal transport to help transcribe music.
+By using a distance metric based on the harmonic series seems to be useful for determining where a note exists.
 
 \section{Optimal Transport}
 
@@ -124,7 +163,6 @@ which prevents artifacts in highly nonlinear filters such as the one this paper 
   \\
   y(n) &= \sum_\tau f(n - \tau R)\tilde{y}(n - \tau R,\tau)
 \end{align}
-
 Note that synthesizing a single sample of $y(n)$ requires overlapping
 $\frac{M}{R}$ frames which adds a latency of $M$ samples between $y$ and it's sources.
 
@@ -400,6 +438,21 @@ A video of my implimentation is available at.
 
 \section{Conclusion}
 
+As seen in the implimentation video, the sound quality is good for many types of signals.
+
+One of the most noticeable artifacts that still exists is the interference that results from a single pitch being mapped to many places.
+As the note splits and moves to new locations it begins to interfere with itself.
+This can cause a drop in volume at the very start or end of a transport.
+This could be fixed by requiring that the mapping be fixed.
+
+There are however sounds that the effect does not work for.
+If we try to transport to audio which has rapid changes in pitch, the source material deteriorates quickly because the transport map is not consistent.
+In certain settings however this can be used musically.
+If for example the we are transporting between two sounds with relatively constant pitch.
+
+But overall this the sound quality is good for many sounds.
+It has the potential to be used by DJs looking for interesting ways to mix between songs, and musicians looking to create new sounds.
+
 If one of the sources is time varying the source material quickly deteriorates.
 Great for constant sounds.
 
@@ -424,3 +477,37 @@ portmidi
 cite justin solomon
 
 \end{document}
+
+
+
+PLOT:
+optimal transport
+plot reassigned frequency
+plot segmentation
+plot buffered segmentation
+plot misaligned audio
+Phasing
+
+Why did I do this frequency reassignment method?
+
+It can pick peaks in the presence of noise, but no threshold so even small peaks can be detected.
+
+Doesn't require setting a peak threshold 
+
+Then Write algorithm for frequency
+
+Clean up phase accumulation math
+
+What are the symbols in resynthesize for center and phase
+
+Then clean up some text
+
+Then do references
+
+Then do slides
+
+Then do Demo
+
+Get rid of optimal transport and phase vocoder sections
+Put description of optimal transport in the introduction.
+Intersperse Phase vocoder stuff
