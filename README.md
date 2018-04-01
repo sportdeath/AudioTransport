@@ -1,6 +1,6 @@
 # Audio Transport
 
-An implimentation of included [paper](https://github.com/sportdeath/AudioTransport/raw/master/paper/paper.pdf), which 
+An implimentation of the included [paper](https://github.com/sportdeath/AudioTransport/raw/master/paper/paper.pdf), which 
 describes a new technique to interpolate between audio
 signals. This technique uses optimal transport to move the pitches in
 one signal to the pitches in another. Audibly this sounds like a generalized
@@ -26,7 +26,7 @@ Build the binaries using cmake:
 Run the selected binary and then navigate throught the inputs.
 If you want to use a DAW rather than an external MIDI controller to control the transport,
 you will need to set up a [virtual MIDI bus](https://help.ableton.com/hc/en-us/articles/209774225-Using-virtual-MIDI-buses).
-On OS X, you can use [Soundflower](https://github.com/mattingalls/Soundflower) for internal audio routing.
+On OS X you can use [Soundflower](https://github.com/mattingalls/Soundflower) for internal audio routing.
 
     $ ./BidirectionalTransportVocoderTest 
     
@@ -50,7 +50,7 @@ On OS X, you can use [Soundflower](https://github.com/mattingalls/Soundflower) f
     To quit type 'quit': quit
     
 Play audio on channels 3/4 and 5/6 of the input audio device. 
-Use midi value 64 on channel 1 of the input MIDI device to interpolate between the two audio signals.
+Use MIDI value 64 on channel 1 of the input MIDI device to interpolate between the two audio signals.
 These defaults can be changed in the corresponding [script file](https://github.com/sportdeath/AudioTransport/blob/master/test/BidirectionalTransportVocoderTest.cpp).
 
 ## Dependencies
